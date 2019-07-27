@@ -1,0 +1,42 @@
+//g(x)=（1-a）f(x)+a*b(x)  a的取值为0-1之间
+//相关api (addWeighted) 参数1，输入图像1；参数二 图像1的权重；参数3，输入图像2；参数4，图像2的权重；参数5, gamma 校正值
+//参数6，输出混合的图像。
+#include <opencv2/opencv.hpp>
+#include <iostream>
+using namespace std;
+using namespace cv;
+int main(int argc, char** argv) {
+	Mat src1, src2, dst1,dst2;
+	src1 = imread("F:/PHOTO/win7logo.jpg");
+	src2 = imread("F:/PHOTO/LinuxLogo.jpg");
+	if (src1.empty()) {
+		cout << "could not load image1..." << endl;
+		return -1;
+	}
+	if (src2.empty()) {
+		cout << "could not load image2..." << endl;
+		return -1;
+	}
+	//调整image2的大小与image1的大小一致，输出src3，最后是src1与src3相融合。
+	//融合函数addWeighted()要求输入的两个图形尺寸相同
+	Mat src3 ;
+	resize(src2, src3, Size(src1.cols, src1.rows));
+	double alpha = 0.5;
+	//判断格式是否 改为一致
+	if (src1.rows == src3.rows && src1.cols == src3.cols && src1.type() == src3.type()) {
+		addWeighted(src1, alpha, src3, (1 - alpha), 0.0, dst1); //这是两个图片相加
+		namedWindow("win7logo", CV_WINDOW_AUTOSIZE);
+		imshow("win7logo", src1);
+		namedWindow("linuxlogo", CV_WINDOW_AUTOSIZE);
+		imshow("linuxlogo", src2);
+		namedWindow("blend photo", CV_WINDOW_AUTOSIZE);
+		imshow("blend photo", dst1);
+	}
+	if (src1.rows == src3.rows && src1.cols == src3.cols && src1.type() == src3.type()) {
+		multiply(src1, src3, dst2, 1.0, -1);//两图片像素相乘
+		namedWindow("multiply photo", CV_WINDOW_AUTOSIZE);
+		imshow("multiply photo", dst2);
+	}
+	waitKey(0);
+	return 0;
+}
