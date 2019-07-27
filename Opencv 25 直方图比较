@@ -1,0 +1,83 @@
+//对输入的两张图像计算得到直方图H1与H2，归一化到相同的尺度空间,然后可以通过计算H1与H2的之间的距离
+//得到两个直方图的相似程度进而比较图像本身的相似程度。
+//Correlation 相关性比较
+//Chi - Square 卡方比较
+//Intersection 十字交叉性
+//Bhattacharyya distance 巴氏距离
+//首先把图像从RGB色彩空间转换到HSV色彩空间cvtColor
+//计算图像的直方图，然后归一化到[0~1]之间calcHist和normalize;
+//使用上述四种比较方法之一进行比较compareHist
+//compareHist(
+//     InputArray h1, // 直方图数据，下同
+//     InputArray H2,
+//     int method// 比较方法，上述四种方法之一
+//)
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <math.h>
+using namespace std;
+using namespace cv;
+//声明函数
+string convertToString(double d);
+int main(int argc, char** argv) {
+	Mat base, test1;
+
+	base = imread("F:/PHOTO/dog.jpg");
+	test1 = imread("F:/PHOTO/dog2.jpg");
+	if (!base.data&&!test1.data) {
+		printf("could not load image...\n");
+		return -1;
+	}
+	Mat hsvbase, hsvtest1;
+	//BGR 转为HSV空间色彩
+	cvtColor(base, hsvbase, CV_BGR2HSV);
+	cvtColor(test1, hsvtest1, CV_BGR2HSV);
+
+	//calcHist参数详解：
+	//  ①const Mat* images：为输入图像的指针；
+	//  ②int nimages：要计较直方图的图像的个数。此函数可觉得多图像求直方图，所以凡是nimages = 1。
+	//  ③const int* channels：图像的通道是一个数组，若是是灰度图像则channels[1] = { 0 };
+	//  若是是彩色图像则channels[3] = { 0,1,2 }；若是只是求彩色图像第2个通道的直方图则channels[1] = { 1 };
+	//  ④IuputArray mask：掩膜，默认环境设置为一个空图像，即：Mat()。
+	//  ⑤OutArray hist：计算获得的直方图
+	//  ⑥int dims：获得的直方图的维数，灰度图像为1维，彩色图像为3维
+	//  ⑦const int* histSize：直方图横坐标的区间数。若是是10，则它会横坐标分为10份，然后统计每个区间的像素点总和
+	//  ⑧const float** ranges：这是一个二维数组，用来指出每个区间的规模
+	//  ⑨uniform参数表白直方图是否等距
+	//  ⑩accumulate与多图像下直方图的显示与存储有关；*/
+	//直方图横坐标的区间数
+	int h_bins = 50;
+	int s_bins = 60;
+	int histSize[] = { h_bins, s_bins };
+
+	// hue varies from 0 to 179, saturation from 0 to 255    
+	float h_ranges[] = { 0, 180 };
+	float s_ranges[] = { 0, 256 };
+	const float* ranges[] = { h_ranges, s_ranges };
+
+	// Use the o-th and 1-st channels    
+	int channels[] = { 0, 1 };
+	//计算获得的直方数据
+	MatND hist_base;
+	MatND hist_test1;
+
+	calcHist(&hsvbase, 1, channels, Mat(), hist_base, 2, histSize, ranges, true, false);
+	//归一化处理，本地计算输出还是hist_base
+	normalize(hist_base, hist_base, 0, 1, NORM_MINMAX, -1, Mat());
+
+	calcHist(&hsvtest1, 1, channels, Mat(), hist_test1, 2, histSize, ranges, true, false);
+	normalize(hist_test1, hist_test1, 0, 1, NORM_MINMAX, -1, Mat());
+
+	//compareHist  直方图比较十字计算(CV_COMP_INTERSECT)
+	double basetest1 = compareHist(hist_base, hist_test1, CV_COMP_INTERSECT);
+	putText(test1, convertToString(basetest1), Point(50, 50), CV_FONT_HERSHEY_COMPLEX, 1, Scalar(0, 0, 255), 2, LINE_AA);
+	imshow("test1", test1);
+	waitKey(0);
+	return 0;
+}
+string convertToString(double d) {
+	ostringstream os;
+	if (os << d)
+		return os.str();
+	return "invalid conversion";
+}
