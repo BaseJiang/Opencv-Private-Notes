@@ -1,0 +1,116 @@
+/*waitKey()函数的功能是不断刷新图像，频率时间为delay，单位为ms。返回值为当前键盘按键值。显示图像时，
+如果需要在imshow("xxxx", image)后加上while（WaitKey(n) == key）为大于等于0的数即可，那么程序将会停在显示函数处，不运行其他代码;
+直到键盘值为key的响应之后。delay > 0时，延迟"delay"ms，在显示视频时这个函数是有用的，用于设置在显示完一帧图像后程序等待"delay"ms再显示
+下一帧视频；如果使用waitKey(0)则只会显示第一帧视频。返回值：如果delay > 0, 那么超过指定时间则返回 - 1；如果delay = 0，将没有返回值。
+如果程序想响应某个按键，可利用if(waitKey(1) == Keyvalue)；经常程序里面出现if(waitKey(10) >= 0) 是说10ms中按任意键进入此if块。
+*/
+#include<opencv2/opencv.hpp>
+#include<iostream>
+using namespace std;
+using namespace cv;
+Mat bgImage;
+const char* demo_win = "draw shapes and text demo ";
+void MyLines();
+void MyRectangle();
+void MyEllipse();
+void MyCircle();
+void MyPolygon();
+void MyRandomLineDemo();
+void MyText();
+int main(int artgc, char** argv) {
+	bgImage = imread("F:/PHOTO/cat.jpg");
+	if (!bgImage.data) {
+		printf("could not load image...\n");
+		return -1;
+	}
+	/*MyLines();
+	MyRectangle();
+	MyEllipse();
+	MyCircle();
+	MyPolygon();
+	MyRandomLineDemo();*/
+	MyText();
+	namedWindow(demo_win, CV_WINDOW_AUTOSIZE);
+	imshow(demo_win, bgImage);
+	waitKey(0);
+	return 0;
+}
+//在背景图上画线
+void MyLines() {
+	Point p1 = Point(20, 30);//定义一个点p1
+	Point p2;//定义第二个点
+	p2.x = 300;
+	p2.y = 300;
+	Scalar color = Scalar(0, 0, 255);//颜色设置为红色
+
+	//参数1：背景图；参数2：起点；参数3：终点；参数4：颜色；参数5 ：线宽；参数6： 线格式；
+	line(bgImage, p1, p2, color, 6, 8);
+}
+//在背景图上画矩形
+void MyRectangle() {
+	//参数1 左上角坐标x；参数2 左上角左边y；参数3 宽，也就是举行横向的长度；参数四 矩形的高度
+	Rect rect = Rect(200,100,300,300);
+	Scalar color = Scalar(255, 0, 0);
+	//参数1：背景图；参数2：矩形位置信息；参数3：颜色信息；参数4：线宽；参数5：
+	rectangle(bgImage, rect, color, 3, 8);
+}
+//在背景图上画椭圆
+void MyEllipse() {
+	Scalar color = Scalar(0, 255, 0);//绿色
+	/参数1：椭圆中心； 参数2：主轴长度； 参数3：旋转角度； 参数4：开始角度； 参数5：结束角度； 参数6：颜色； 参数7：线宽； 参数8 ：线类型；
+		ellipse(bgImage, Point(bgImage.cols / 2, bgImage.rows / 2), Size(bgImage.cols / 4, bgImage.rows / 8),
+		90, 0, 360, color, 2, LINE_8);
+}
+//在背景图上画圆
+void MyCircle() {
+	Scalar color = Scalar(0, 255, 255);
+	Point center = Point(bgImage.cols / 2, bgImage.rows / 2);
+	circle(bgImage, center, 150, color, 2, 8);
+}
+//在背景图上画多边形 并填充
+void MyPolygon() {
+	Point pts[1][4];//定义point 类型的大小为 1行4列的数组 数组名为pts
+	pts[0][0] = Point(100, 100);//（数组中行和列数都是从0开始算的）第0行0列的数组元素赋值为 点（100，100）
+	pts[0][1] = Point(100, 200);//第0行1列的数组元素赋值为 点（100，200）
+	pts[0][2] = Point(200, 200);//第0行2列的数组元素赋值为 点（200，200）
+	pts[0][3] = Point(200, 100);//第0行3列的数组元素赋值为 点（200，100）
+	const Point* ppts[] = { pts[0] };//新建一个point类型的一维指针数组ppts。  pts[0]:数组名[0]，表示数组角标为0 所在行的地址位置。
+	int npt[] = { 4 };//多边形的顶点数量为4
+	Scalar color = Scalar(255, 12, 255);
+	//参数1：背景图片； 参数2：多边形的顶点集合；参数 3 ：npt 多边形的顶点数目； 参数 4：绘制多边形的数量； 参数多边形颜色参数。
+	fillPoly(bgImage, ppts, npt, 1, color, 8);
+}
+//在背景图上画随机线条
+void MyRandomLineDemo() {
+	RNG rng(12345);  // 产生随机数
+	Point p1;        // 点p1
+	Point p2;        //点p2
+	Mat bg = Mat::zeros(bgImage.size(), bgImage.type());//新建一个大小、尺寸与bgImage一致的图像
+	for (int i = 0; i < 10000; i++) {                  
+		//为随机生成多条横线，采用循环 获取 点的位置
+		p1.x = rng.uniform(0, bgImage.cols);
+		p1.y = rng.uniform(0, bgImage.rows);
+		p2.x = rng.uniform(0, bgImage.cols);
+		p2.y = rng.uniform(0, bgImage.rows);
+		Scalar color = Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));//颜色也随机
+		waitKey(50);                                  //延迟50ms
+		line(bg, p1, p2, color, 1, 8);
+		namedWindow("randomlinedemo", CV_WINDOW_AUTOSIZE);
+		imshow("randomlinedemo", bg);
+	}
+}
+//在背景图上添加文本
+// void cv::putText(
+// cv::Mat& img, // 待绘制的图像
+// const string& text, // 待绘制的文字
+// cv::Point origin, // 文本框的左下角位置
+// int fontFace, // 字体 (如cv::FONT_HERSHEY_PLAIN)
+// double fontScale, // 尺寸因子，值越大文字越大
+// cv::Scalar color, // 线条的颜色（RGB）
+// int thickness = 1, // 线条宽度
+// int lineType = 8, // 线型（4邻域或8邻域，默认8邻域）
+// bool bottomLeftOrigin = false // true='origin at lower left'
+//);
+void MyText() {
+	putText(bgImage, "hello,opencv", Point(300, 300), CV_FONT_HERSHEY_COMPLEX, 1.0, Scalar(12, 23, 200), 3, 8);
+}
