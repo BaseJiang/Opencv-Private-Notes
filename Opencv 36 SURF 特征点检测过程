@@ -1,0 +1,96 @@
+//课程36  SURF特征点检测过程：
+//*使用FeatureDetector接口来发现感兴趣点。
+//*使用SurfFeatureDetector以及其函数detect来实现检测过程。
+//*使用函数drawKeypoints绘制检测到的关键点。
+//绘制匹配点–drawMatches函数
+//在特征匹配中，特征描述子通常用于N维向量，在光照不变以及少许透视变形的情况下很理想。
+//另外，优质的描述子可以通过简单的距离测量进行比较，比如欧氏距离。在Opencv中，
+//使用SURF进行特征点描述主要是drawMatches方法和BruteForceMatcher类的运用。
+//drawMatches用于绘制相匹配的两个图像的关键点
+//void drawMatches(const Mat& img1, const vector& keypoints1, const Mat& img2, const vector& keypoints2, const vector& matches1to2,
+//Mat& outImg, const Scalar& matchColor = Scalar::all(-1), const Scalar& singlePointColor = Scalar::all(-1), 
+//const vector& matchesMask = vector(), intflags = DrawMatchesFlags::DEFAULT)
+//1.SURF 全称 speed up robust feature 是加速版的SIFT
+//2.如何提取SURF特征？两步：检测和描述
+//检测特征点
+//描述特征点
+//3.什么样的点是特征点？
+//它首先是图像中得一个点，这个点具有这样一些特性：
+//容易被检测到，只要这个点所对应的那个物体还在摄像头的视野范围内，那么这个点就能被检测出来。比如角点，边界点，亮处的暗点，暗处的亮点等，一言以蔽之，就是与周围有反差的点
+//不受明暗光线变化的影响
+//核心函数：
+
+//类SURF中成员函数create()参数说明：
+//static Ptr<SURF> create(double hessianThreshold = 100,   //hessian关键点检测器的阈值，默认在300-500之间
+//                 int nOctaves = 4,          //表示在4个尺度空间
+//                 int nOctaveLayers = 3,      //每个尺度空间的层数
+//                 bool extended = false,      //扩展描述符标志（true使用扩展的128个元素的描述符，false使用64个元素的描述符）
+//                 bool upright = false       //旋转的特征标志（true不计算方向，false计算方向）
+//);
+//函数detect()用来检测图像或图像集中的关键点，参数说明 
+//
+//void detect(InputArray image,            //输入图像
+//        vector<KeyPoint>& keypoints,    //检测到的关键点
+//       InputArray mask = noArray()     //指定在哪里寻找关键点的掩码（必须是在感兴趣区域中具有非零值的8位整数矩阵）
+//);
+//
+//函数drawKeypoints()绘制关键点，参数说明：
+//void drawKeypoints(InputArray image, //源图像
+//             vector<KeyPoint>& keypoints, //来自源图像的关键点
+//             InputOutputArray outImage,//输出图像
+//             const Scalar& color = Scalar::all(-1), //关键点的颜色
+//              int flags = DrawMatchesFlags::DEFAULT //设置绘图功能的标志
+//)
+
+#include "pch.h"
+#include <iostream>
+#include<opencv2/opencv.hpp>
+#include<opencv2/xfeatures2d.hpp>
+using namespace cv;
+using namespace std;
+using namespace cv::xfeatures2d;
+Mat src, gray;
+const string output_name = "SURF特征检测";
+
+//定义hessian的阈值特征检测算子
+int minHessian = 100;
+int maxHessian = 500;
+
+//声明特征检测回调函数
+void SURF_detect_func(int, void*);
+
+int main(int, char**) {
+	src = imread("F:/PHOTO/building.jpg");
+	if (src.empty()) {
+		printf("coule not find and load the photo....\n");
+		return -1;
+	}
+	imshow("原图",src);
+	//转灰度图
+	cvtColor(src,gray,CV_BGR2GRAY);
+
+	SURF_detect_func(0, 0);
+
+	createTrackbar("hessian阈值",output_name,&minHessian,maxHessian,SURF_detect_func);
+
+	waitKey(0);
+	return 0;
+}
+void SURF_detect_func(int, void*) {
+	//特征检测
+	//创建一个surf类对象并初始化
+	Ptr<SURF> detector =SURF::create(minHessian,4,3,false,false);
+
+	vector <KeyPoint> keypoints;
+
+	//检测图像的关键点
+	detector->detect(gray,keypoints,Mat());
+
+	//绘制关键点
+	Mat keypoint_Img;
+
+	drawKeypoints(gray,keypoints,keypoint_Img,Scalar::all(-1),DrawMatchesFlags::DEFAULT);
+	//Scalr::all(-1);当用一个负数作为颜色时候，表示每次随机选取颜色
+	imshow(output_name,keypoint_Img);
+}
+
