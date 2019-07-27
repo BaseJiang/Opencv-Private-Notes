@@ -1,0 +1,108 @@
+//利用计算机视觉技术对图像进行处理，通常会用到图像的匹配，图像匹配是指图像之间的比较，得到不同图像之间的相似度，
+//在机器识别的过程中把不同传感器或同一传感器在不同时间、不同成像条件下对同一景物获得的两幅或多幅图像在空间上对准，或根据已知模式到另一幅图中寻找对应的模式。
+//匹配方法大体分为基于灰度和基于特征两类，其中基于特征的配准方法研究较多。
+//基于灰度的模板匹配方法原理简单且在光照良好的条件下可以得到比较满意的匹配结果
+//基于特征的匹配方法要先提取各个图像中的特征再完成特征间的匹配，通过匹配的特征建立图像间的映射关系求出匹配图像。
+//一般而言提取特征点相对容易，能对图像间的分辨率、旋转、平移、光照变化等保持不变，故在利用模板匹配得到抓取的图像后进一步进行特征匹配。
+//基于特征匹配的方法有很多种如：FAST、HARRIS、SIFT、SURF、SUSAN等。
+//SIFT是一种鲁棒性好的尺度不变特征描述方法，但SIFT算法计算数据量大、时间复杂度高、算法耗时长。
+//模板匹配是通过模板在采集到的原图像进行滑动寻找与模板图像相似的目标。模板匹配不是基于直方图的方式，而是基于图像的灰度匹配。
+//其基本原理是逐像素的把一个以一定大小的实时图像窗口的灰度矩阵与参考图像的所有可能的串口灰度阵列，按照某种相似度量方法进行搜索比较的匹配方法，
+//从理论上说就是采用图像相关技术。
+//为了利用模板匹配从源图像中得到匹配区域，从源图像选取该区域作为进行匹配的模板。模板从源图像左上角开始每次以一个像素点为单位进行移动，
+//每到达一个位置，就会计算模板矩阵和源图像当前位置矩阵匹配的“好”“坏”程度即两个矩阵的相似程度。模板滑动与源图像匹配过程中，
+//将模板和当前模板覆盖区域的矩阵的计算结果存储在矩阵(R)中。R中每一个位置（x, y）都包含了匹配矩阵的计算结果。
+//在OpenCV中提供了6种匹配度量方法。
+//(1)平方差匹配法            CV_TM_SQDIFF
+//(2)归一化平方差匹配法      CV_TM_SQDIFF_NORMED
+//(3)相关匹配法              CV_TM_CCORR
+//(4)归一化相关匹配法        CV_TM_CCORR_NORMED
+//(5)系数匹配法              CV_TM_CCOEFF
+//(6)化相关系数匹配法        CV_TMCCOEFF_NORMED
+
+//通常来讲，随着从简单测量方法（平方差）到更复杂的测量方法（相关系数法），我们可以获得越来越准确的匹配。
+//然而这同时也会以越来越大的计算量为代价。
+//值得注意的是对于方法SQDIFF和SQDIFF_NORMED两种方法来讲，越小的值就有着更高的匹配结果，而其余的方法则是数值越大匹配效果越好
+//matchTemplate
+//void cv::matchTemplate(InputArray  image,     待搜索的图像，且图像必须为8 - bit或32 - bit的浮点型图像
+//               InputArray    templ,    用于进行模板匹配的模板图像，类型和原图像一致，但是尺寸不能大于原图像
+//               OutputArray   result,   模板搜索结果输出图像，必须为单通道32 - bit位浮点型图像，
+//               如果图像尺寸是WxH而template尺寸是wxh，则此参数result一定是(W - w + 1)x(H - h + 1)
+//               int        method,    模板匹配计算类型
+//               InputArray   mask = noArray() 图像匹配时用的掩膜板，必须和模板图像有相同的数据类型和尺寸 
+//)
+
+//void cv::minMaxLoc(InputArray  src,
+//     double* minVal,
+//     double* maxVal = 0,
+//     Point * minLoc = 0,
+//     Point * maxLoc = 0,
+//     InputArray      mask = noArray()
+//)
+
+//参数解释：
+//InputArray src : 输入的单通道数组
+// double minVal : **double类型指针，返回最小值，如果没有定义返回NULL
+//double* maxVal : 同上，返回最大值
+//Point * minLoc = 0 : Point类型的指针，在二维图像中返回最小值的位置坐标，如果没有定义返回NULL
+// Point maxLoc = 0 : **Point同上，返回最大位置//坐标
+//InputArray mask = noArray() : 可选掩膜板
+
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <math.h>
+
+using namespace std;
+using namespace cv;
+Mat src, temp, dst;
+int match_method = TM_SQDIFF;
+int max_track = 5;
+const char* INPUT_T = "input image";
+const char* OUTPUT_T = "result image";
+const char* match_t = "template match-demo";
+const char* INPUT_SRC = "input srcimage";
+int main(int argc, char** argv) {
+	// 待检测图像
+	src = imread("F:/PHOTO/dog.jpg");
+	// 模板图像
+	temp = imread("F:/PHOTO/dog1.jpg");
+	if (src.empty() || temp.empty()) {
+		printf("could not load image...\n");
+		return -1;
+	}
+
+	imshow(INPUT_T, temp);
+	imshow(INPUT_SRC,src);
+
+	const char* trackbar_title = "Match Algo Type:";
+
+	int width = src.cols - temp.cols + 1;
+	int height = src.rows - temp.rows + 1;
+
+	Mat result(width, height, CV_32FC1);
+
+	//参数 :原图像、模板 图像、输出结果图像，匹配方法，掩模
+	matchTemplate(src, temp, result, match_method, Mat());
+	//参数输入、输出、范围0-1，
+	normalize(result, result, 0, 1, NORM_MINMAX, -1, Mat());
+	Point minLoc;
+	Point maxLoc;
+	double min, max;
+	src.copyTo(dst);
+	Point temLoc;
+
+	minMaxLoc(result, &min, &max, &minLoc, &maxLoc, Mat());
+	if (match_method == TM_SQDIFF || match_method == TM_SQDIFF_NORMED) {
+		temLoc = minLoc;
+	}
+	else {
+		temLoc = maxLoc;
+	}
+	// 绘制矩形
+	rectangle(dst, Rect(temLoc.x, temLoc.y, temp.cols, temp.rows), Scalar(0, 0, 255), 2, 8);
+	rectangle(result, Rect(temLoc.x, temLoc.y, temp.cols, temp.rows), Scalar(0, 0, 255), 2, 8);
+	imshow(OUTPUT_T, result);
+	imshow(match_t, dst);
+	waitKey(0);
+	return 0;
+}
