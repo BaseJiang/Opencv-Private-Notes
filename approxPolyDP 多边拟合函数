@@ -1,0 +1,79 @@
+approxPolyDP 多边拟合函数approxPolyDP 
+	主要功能是把一个连续光滑曲线折线化，对图像轮廓点进行多边形拟合。原理图：对比之前黑点连线，之后蓝色连线：
+	C++: void approxPolyDP(InputArray curve, OutputArray approxCurve, double epsilon, bool closed)
+	参数详解;InputArray curve:一般是由图像的轮廓点组成的点集
+	OutputArray approxCurve：表示输出的多边形点集
+	double epsilon：主要表示输出的精度，就是另个轮廓点之间最大距离数，5,6,7，8，，
+	bool closed：表示输出的多边形是否封闭
+
+#include <opencv2/opencv.hpp>    
+#include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
+	using namespace cv;
+using namespace std;
+int main(int argc, char** argv)  {
+	Mat img = imread("4.jpg", -1);
+	pyrDown(img, img, Size(img.cols/2, img.rows/2), 4);
+	imshow("img", img);    imwrite("img.jpg", img);
+	//通过canny算法找轮廓，这样 findcontours 的结果会好些
+	Mat canny_out;
+	Canny(img, canny_out, 45, 127, 3, false);
+	imshow("canny_out", canny_out);
+	imwrite("canny_out.jpg", canny_out);
+	//寻找轮廓    
+	vector<vector<Point>> contours;    
+	vector<Vec4i> hierachy;
+	findContours(canny_out, contours, hierachy, RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(-1,-1));
+	drawContours(img, contours, -1, Scalar(0,0,255), 1, 8, hierachy);
+	//定义圆形、方形、旋转矩形、椭圆的存储容器
+	vector<vector<Point>> contours_ploy(contours.size());
+	vector<Rect> rects_ploy(contours.size());
+	vector<Point2f> circle_centers(contours.size()); 
+	vector<float> circle_radius(contours.size());
+	vector<RotatedRect> RotatedRect_ploy;
+	//注意：由于下面赋值的过程中有个点数大于5的条件，所以这里没有直接初始化，才有下面pushback的方法添加值。
+	vector<RotatedRect> ellipse_ploy;//注意，这里是画椭圆，但是容器类型是 RotatedRect
+	//将结果放到各自的容器中
+	for (size_t i = 0; i< contours.size(); i++)    {
+		approxPolyDP(contours[i], contours_ploy[i], 5, true);
+		rects_ploy[i] = boundingRect(contours_ploy[i]);
+		minEnclosingCircle(contours_ploy[i], circle_centers[i], circle_radius[i]);
+		if (contours_ploy[i].size() >5)        {
+			RotatedRect temp1 = minAreaRect(contours_ploy[i]);
+			RotatedRect_ploy.push_back(temp1);
+			RotatedRect temp2 = fitEllipse(contours_ploy[i]);
+			ellipse_ploy.push_back(temp2);
+		}    
+	}    
+	//定义最终绘图的图片    
+	Mat draw_rect(img.size(), img.type(), Scalar::all(0)),
+		draw_rotateRect(img.size(), img.type(), Scalar::all(0)),
+		draw_circle(img.size(), img.type(), Scalar::all(0)),
+		draw_ellipse(img.size(), img.type(), Scalar::all(0));
+	//绘图圆形、矩形    
+	RNG rng(12345);
+	for (size_t i = 0; i<contours.size(); i++)    {
+		Scalar color = Scalar(rng.uniform(0,255), rng.uniform(0,255), rng.uniform(0,255));
+		rectangle(draw_rect, rects_ploy[i], color, 1, 8);
+		circle(draw_circle, circle_centers[i], circle_radius[i], color, 1, 8);
+	}
+	imshow("draw_rect", draw_rect);imwrite("draw_rect.jpg", draw_rect);
+	imshow("draw_circle", draw_circle);imwrite("draw_circle.jpg", draw_circle);
+	//绘图椭圆形、旋转矩形
+	Point2f pot[4];
+	for (size_t i = 0; i<ellipse_ploy.size(); i++)    {
+		Scalar color = Scalar(rng.uniform(0,255), rng.uniform(0,255), rng.uniform(0,255));
+		ellipse(draw_ellipse, ellipse_ploy[i], color, 1, 8);
+		RotatedRect_ploy[i].points(pot);
+		for(int j=0; j<4; j++)        {
+			line(draw_rotateRect, pot[j], pot[(j+1)%4], color);
+		}
+	}
+	imshow("draw_ellipse", draw_ellipse);
+	imwrite("draw_ellipse.jpg", draw_ellipse);
+	imshow("draw_rotateRect", draw_rotateRect);
+	imwrite("draw_rotateRect.jpg", draw_rotateRect);
+	waitKey();   
+	return 1;
+}
