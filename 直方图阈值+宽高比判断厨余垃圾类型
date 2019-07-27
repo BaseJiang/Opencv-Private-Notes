@@ -1,0 +1,407 @@
+//可调节直方图阈值的厨余垃圾类型检测项目
+//对于最后的判断条件
+//在相应区域统计的B/G/R 比值 设定为：0.55<B<0.75  0.55<G<0.7    0.75<R
+//矩形框的宽高比设定为0.65
+#include "stdafx.h"
+#include <iostream>
+#include <opencv2/opencv.hpp>
+#include <Windows.h>
+#include <iomanip>
+#include <fstream>
+using namespace std;
+using namespace cv;
+void image_Preprocessing(int,void*);
+void draw_Rectangle(int,void*);
+void call_Hist(int ,void *);
+void judge_Type(int,void*);
+void save_Data(int,void*);
+//将输入图片的规格限在 ：480行，640列
+#define HEIGHT 480
+#define WIDTH 640
+//过滤掉面积在2000以下的矩形框
+#define RECT_AERA 2000
+//全局变量 全局可以访问
+Mat srcImg,hsvImg,OriginalImage,hsvThresholdImg,cutImg,openImg,closeImg,mediaBlurImg,srcCopyImg;
+//count:用以计算R\G\B各通道所有的像素个数
+//rangecount:用以计算R\G\B各通道，相应灰度空间上，像素的数量。
+//percent:用以计算，高于一定阈值，灰度空间上的像素数值与总像素的比值。（阈值设置为y坐标的值，目前设置是100）。
+int B_count=0;
+int B_rangecount=0;
+double B_percent=0;
+int G_count=0;
+int G_rangecount =0;
+double G_percent=0;
+int R_count=0;
+int R_rangecount =0;
+double R_percent=0;
+//为了将count\rangecount\percent 文本输出到本地，将double类型转为字符类型。
+char B_countString[20] = { 0 };
+char B_rangecountString[20] = { 0 };
+char B_percentString[20] = { 0 };
+char G_countString[20] = { 0 };
+char G_rangecountString[20] = { 0 };
+char G_percentString[20] = { 0 };
+char R_countString[20] = { 0 };
+char R_rangecountString[20] = { 0 };
+char R_percentString[20] = { 0 };
+//矩形框宽高比值
+//定义矩形框的宽高比为width_height_percent
+double width_height_percent ;
+//用于写入文本 ，转为字符串形式
+char width_height_percentString[20] = { 0 };
+// 划分HIST的初始个数，越高越精确，若使用trckbar功能，需要把histSize设置为合适的大小（例如50）
+int histSize =256;
+//灰度范围
+float ranges[]={0,255};
+//灰度范围的指针
+const float *H_ranges[]={ranges};
+//【主函数】
+int main(int argc, char** argv) {
+       //例 ：chuyu1.jpg  、normal1.jpg
+       OriginalImage = imread("F:\\PHOTO\\kitchenWaste\\normal5.jpg");
+       
+       //OriginalImage = imread("F:\\PHOTO\\TestImage\\44.jpg");
+       if (OriginalImage.empty()) {
+              printf("can not load the image..../n");
+              return -1;
+       }
+       imshow("input_Img", OriginalImage);
+       //将输入图片大小调整为640*480  size(里面是 X,Y（即宽、高）)
+       resize(OriginalImage,srcImg,Size(WIDTH,HEIGHT));
+       //imshow("调整为640*480后图像", srcImg);
+       //第一步：图片预处理函数
+       image_Preprocessing(0,0);
+       //第二步：画矩形框
+       draw_Rectangle(0,0);
+       //第三步：滚动条回调函数,求RGB通道直方图
+       call_Hist(0,0);
+       //若使trackbar 滑动调节 直方图矩形柱子个数的话，只需要把下句取消注释，并把初始位置的histSize设置一个合理的数值。
+       //createTrackbar( "histSize", "cutImg", &histSize, 256, call_Hist);
+       //第四步：依据区间占总像素的比重判断类型函数
+       judge_Type(0,0);
+       //第五步：将一些数据信息写入到txt文本。
+       save_Data(0,0);
+       waitKey(0);
+       return 0;
+}
+//第一步：图片预处理函数
+void image_Preprocessing(int,void*){
+       //先转为hsv图像格式
+       cvtColor(srcImg,hsvImg,CV_BGR2HSV);
+       imshow("HSVImg", hsvImg);
+       // 设置垃圾袋 hsv 数值的范围
+       int LowH=80;
+       int HihgH=100;
+       int LowS=60;
+       int HighS=255;
+       int LowV=100;
+       int HighV=255;
+       inRange(hsvImg,Scalar(LowH,LowS,LowV),Scalar(HihgH,HighS,HighV),hsvThresholdImg);
+       imshow("hsvThresholdImg", hsvThresholdImg);
+       //开操作 (去除一些噪点)
+       Mat element = getStructuringElement(MORPH_RECT, Size(5, 5),Point(-1,-1));
+       morphologyEx(hsvThresholdImg,openImg, MORPH_OPEN, element);
+       //闭操作 (连接一些连通域)
+       morphologyEx(openImg, closeImg, MORPH_CLOSE, element);
+       //imshow("open后图像",openImg);
+       //imshow("close后图像",closeImg);
+       //中值滤波 消除椒盐噪声 保护边缘信息
+       medianBlur(closeImg, mediaBlurImg, 11);
+       imshow("medianBlur",mediaBlurImg);
+}
+//画轮廓、外接矩形框、求矩形面积
+void draw_Rectangle(int,void*){
+       vector<vector<Point>> contours;
+       //拓扑结构
+       vector<Vec4i> hierarchy;
+       //找轮廓、检测到的轮廓（contours），都是以点向量的形式进行存储即使用point类型的vector表示
+       findContours(closeImg, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+       //定义一个过滤后的矩形容器向量,值为空,用以存放面积符合要求的，矩形框
+       vector<Rect> tempBoundRect;
+       vector<vector<Point>> contours_poly(contours.size());
+       vector<Rect>boundRect(contours.size());
+       char areaString[20] = { 0 };
+       double Area = 0;
+       Scalar color = Scalar(0, 0, 255);
+       for (int i = 0; i < contours.size(); i++) {
+              //使用多边形逼近检测到的图像轮廓来寻找包围轮廓的矩形,contours_poly ：拟合点的集合
+              approxPolyDP(contours[i], contours_poly[i], 3, true);
+              //画轮廓
+              // drawContours(srcImg, contours, i, color, 1, 8, hierarchy, 0, Point(0, 0));
+              //使用boundingRect()函数计算包围轮廓的矩形cv::boundingRect(InputArray points)返回一个左上角的坐标 以及矩形的长和宽
+              boundRect[i]=boundingRect(Mat(contours_poly[i]));
+              
+              //矩形左上点的坐标
+              int x = boundRect[i].x;
+              int y = boundRect[i].y;
+              int width = boundRect[i].width;
+              int height = boundRect[i].height;
+              //求外接矩形面积(根据面积，把框数据放进容器，然后再从容器中读数据，画矩形)
+              Area = double(width * height);    
+              if(Area>RECT_AERA){
+                     //把符合要求的框，存入集合tempBoundRect
+                     tempBoundRect.push_back(boundRect[i]);
+              }
+              //循环取出 符合要求的矩形框，并计算相应的宽高比
+              for(int t=0;t<tempBoundRect.size();t++){
+                     //符合要求的框才画矩形，才转换出字符串输出。
+                     double temp_height=tempBoundRect[t].height;
+                     double temp_width=tempBoundRect[t].width;
+                     width_height_percent=double(temp_width /temp_height );
+                     //画矩形框
+                     rectangle(srcImg,tempBoundRect[t],color,1.5,8,0);
+                     cout<<"矩形框的宽高比值为："<<width_height_percent<<endl;
+                     sprintf(areaString, "Area=%0.2f", Area );
+              }      
+              //(x1,y1)是自己放置文本的位置
+              int x1= (boundRect[i].br().x)/2;
+              int y1= (boundRect[i].br().y)/2;
+              putText(srcImg, areaString,  Point(x1,y1), CV_FONT_HERSHEY_COMPLEX_SMALL, 0.85, Scalar(0, 255, 0));
+              // tl和br是用来表示矩形的左上(topleft)和右下(bottomright)，rectangle( drawing, boundRect[i].tl(), boundRect[i].br(), color, 2, 8, 0 );
+              imshow("外接矩形", srcImg);
+              //将矩形框内的区域定为感兴趣区域，提取出来。
+              srcImg.copyTo(srcCopyImg);
+              Mat RoiImg = srcCopyImg(Rect(x, y, width, height));//Rect四个形参分别是：x坐标，y坐标，长，高；注意(x,y)指的是矩形的左上角点
+              imshow("感兴趣区域", RoiImg);   
+              // 根据感兴趣区域，再将上面部分剪掉, 然后进行颜色判断
+              int m = RoiImg.rows;
+              int n = RoiImg.cols;
+              //从上面0.3倍的行数开始截取，保留下方的70%图像
+              cutImg = RoiImg(Range(m*0.3,m), Range(0,n));
+              imshow("cutImg", cutImg);
+              //保存为裁剪后的图片
+              imwrite("saveCutImg.jpg",cutImg);
+       }
+}
+//滚动条回调函数,求RGB通道直方图
+void call_Hist(int ,void *)
+{
+       //访问全局变量 cutImg ，为解决拍摄距离的问题，将裁剪后的图像，统一放缩至320宽 *480高）尺寸 ，成为srcCutImg。
+       Mat srcCutImg;
+       resize(cutImg,srcCutImg,Size(320,480));
+       imshow("srcCutImg",srcCutImg);
+       vector<Mat> BGR_planes;
+       //将图片分成3个通道图像
+       split(srcCutImg, BGR_planes);
+       //创建直方图所要绘制到的图像大小（480行、640列）
+       Mat B_dstImage=Mat::zeros(HEIGHT,WIDTH,CV_8UC3);
+       Mat G_dstImage=Mat::zeros(HEIGHT,WIDTH,CV_8UC3);
+       Mat R_dstImage=Mat::zeros(HEIGHT,WIDTH,CV_8UC3);
+       MatND B_dstHist; //B通道的直方图矩阵
+       MatND G_dstHist; //G通道的直方图矩阵
+       MatND R_dstHist; //R通道的直方图矩阵
+       if(histSize==0)
+       {
+              printf("直方图条数不能为零！\n");
+       }
+       else
+       {
+              //******计算BGR三通道中的B通道直方图*********//
+              // 计算直方图
+              calcHist( &BGR_planes[0],1,0, Mat(),B_dstHist,1,&histSize,H_ranges,true,false);
+              //获取最大最小值
+              double max_B=0;
+              minMaxLoc(B_dstHist,NULL,&max_B,0,0);// 寻找最大值及其位置
+              //绘出直方图
+              double bin_w_b =(double) B_dstImage.cols/histSize;  // histSize: 矩形条的个数，则 bin_w 为条的宽度
+              double bin_u_b = (double)B_dstImage.rows/ max_B; // max: 最高条的像素个数，则 bin_u 为单个像素的高度
+              // 画直方图
+              for(int i=0;i<histSize;i++)
+              {
+                     Point p0=Point(i*bin_w_b,B_dstImage.rows);
+                     int val_b=B_dstHist.at<float>(i);//注意一点要用float类型
+                     //理解不了啊  P0 P1 的坐标
+                     Point p1=Point((i+1)*bin_w_b,B_dstImage.rows-val_b*bin_u_b);
+                     rectangle(B_dstImage,p0,p1,cvScalar(255,0,0),1,8,0);
+                     //统计所有直方图y值的和
+                     cout<<"B通道在灰度值为"<<i<<"时，像素个数"<<"="<<val_b<<endl;
+                     B_count=B_count+val_b;
+                     //统计指定灰度范围的像素个数用B_rangecount  B指定范围 140-230
+                     if((i>=140&&i<=230)){
+                           B_rangecount=B_rangecount+val_b;
+                     }
+              }
+              //求统计区间上的像素数占总像素的比值
+              B_percent=(double)B_rangecount/B_count;
+              //画刻度
+              char string_b[12];//存放转换后十进制数，转化成十进制后的位数不超过12位
+              //画纵坐标刻度（像素个数）
+              int kedu_b=0;
+              for(int i=1;kedu_b<max_B;i++)
+              {
+                     kedu_b=i*(max_B/20);//此处将纵坐标分为20份
+                     sprintf(string_b,"%d", kedu_b );//把一个整数转换为字符串
+                     //在图像中显示文本字符串
+                     putText(B_dstImage, string_b , Point(0,B_dstImage.rows-kedu_b*bin_u_b), 1,1,Scalar(0,255,255));
+              }
+              //画横坐标刻度（像素灰度值）
+              kedu_b=0;
+              for(int i=1;kedu_b<256;i++)
+              {
+                     kedu_b=i*20;//此处选择间隔为20
+                     sprintf(string_b,"%d", kedu_b );//把一个整数转换为字符串
+                     //在图像中显示文本字符串
+                     putText(B_dstImage, string_b , cvPoint(kedu_b*(B_dstImage.cols / 256),B_dstImage.rows),1,1,Scalar(0,255,255));
+              }
+              //******计算BGR三通道中的G通道直方图*********//
+              calcHist( &BGR_planes[1],1,0, Mat(),G_dstHist,1,&histSize,H_ranges); // 计算直方图
+              //获取最大最小值
+              double max_G=0;
+              minMaxLoc(G_dstHist,NULL,&max_G,0,0);// 寻找最大值及其位置
+              //绘出直方图
+              double bin_w_g =(double) G_dstImage.cols/histSize;  // hdims: 条的个数，则 bin_w 为条的宽度
+              double bin_u_g = (double)G_dstImage.rows/ max_G;  //// max: 最高条的像素个数，则 bin_u 为单个像素的高度
+              // 画直方图
+              for(int i=0;i<histSize;i++)
+              {
+                     Point p0=Point(i*bin_w_g,G_dstImage.rows);//
+                     int val_g=G_dstHist.at<float>(i);//注意一点要用float类型，对应旧版本中的 cvGetReal1D(hist->bins,i);
+                     Point p1=Point((i+1)*bin_w_g,G_dstImage.rows-val_g*bin_u_g);
+                     rectangle(G_dstImage,p0,p1,cvScalar(0,255,0),1,8,0);//对应旧版中的cvRectangle();
+                     //统计G所有直方图y值的和
+                     cout<<"G通道在灰度值为"<<i<<"时，像素个数="<<val_g<<endl;
+                     G_count=G_count+val_g;
+                     //统计指定灰度范围的像素个数用G_rangecount  指定范围140-220
+                     if((i>=140&&i<=220)){
+                           G_rangecount=G_rangecount+val_g;
+                     }
+              }
+              //求统计区间上的像素数占总像素的比值
+              G_percent=(double)G_rangecount/G_count;
+              //画刻度
+              char string_g[12];//存放转换后十进制数，转化成十进制后的位数不超过12位
+              //画纵坐标刻度（像素个数）
+              int kedu_g=0;
+              for(int i=1;kedu_g<max_G;i++)
+              {
+                     kedu_g=i*(max_G/20);//此处将纵坐标分为20份
+                     sprintf(string_g,"%d", kedu_g );//把一个整数转换为字符串
+                     //在图像中显示文本字符串
+                     putText(G_dstImage, string_g , Point(0,G_dstImage.rows-kedu_g*bin_u_g), 1,1,Scalar(0,255,255));
+              }
+              //画横坐标刻度（像素灰度值）
+              kedu_g=0;
+              for(int i=1;kedu_g<256;i++)
+              {
+                     kedu_g=i*20;//此处选择间隔为20
+                     sprintf(string_g,"%d", kedu_g );//把一个整数转换为字符串
+                     //在图像中显示文本字符串
+                     putText(G_dstImage, string_g , cvPoint(kedu_g*(G_dstImage.cols / 256),G_dstImage.rows),1,1,Scalar(0,255,255));
+              }
+              //******计算BGR三通道中的R通道直方图*********//
+              calcHist( &BGR_planes[2],1,0, Mat(),R_dstHist,1,&histSize,H_ranges); // 计算直方图
+              //获取最大最小值
+              double max_R=0;
+              minMaxLoc(R_dstHist,NULL,&max_R,0,0);// 寻找最大值及其位置
+              //绘出直方图
+              double bin_w_r =(double) R_dstImage.cols/histSize;  // hdims: 条的个数，则 bin_w 为条的宽度
+              double bin_u_r = (double)R_dstImage.rows/ max_R;  // max: 最高条的像素个数，则 bin_u 为单个像素的高度
+              // 画直方图
+              for(int i=0;i<histSize;i++)
+              {
+                     Point p0=Point(i*bin_w_r,R_dstImage.rows);
+                     int val_r=R_dstHist.at<float>(i);//注意一点要用float类型
+                     Point p1=Point((i+1)*bin_w_r,R_dstImage.rows-val_r*bin_u_r);
+                     rectangle(R_dstImage,p0,p1,cvScalar(0,0,255),1,8,0);
+                     cout<<"R通道在灰度值为"<<i<<"时，像素个数="<<val_r<<endl;
+                     R_count=R_count+val_r;
+                     //统计指定灰度范围的像素个数用R_rangecount 指定范围 30-120
+                     if((i>=30&&i<=120)){
+                           R_rangecount=R_rangecount+val_r;
+                     }
+              }
+              //求统计区间上的像素数占总像素的比值
+              R_percent=(double)R_rangecount/R_count;
+              //画刻度
+              char string_r[12];//存放转换后十进制数，转化成十进制后的位数不超过12位
+              //画纵坐标刻度（像素个数）
+              int kedu_r=0;
+              for(int i=1;kedu_r<max_R;i++)
+              {
+                     kedu_r=i*(max_R/20);//此处将纵坐标分为20份
+                     sprintf(string_r,"%d", kedu_r );//把一个整数转换为字符串
+                     //在图像中显示文本字符串
+                     putText(R_dstImage, string_r , Point(0,R_dstImage.rows-kedu_r*bin_u_r), 1,1,Scalar(0,255,255));//对应旧版中的cvPutText（）
+              }
+              //画横坐标刻度（像素灰度值）
+              kedu_r=0;
+              for(int i=1;kedu_r<256;i++)
+              {
+                     kedu_r=i*20;//此处选择间隔为20
+                     sprintf(string_r,"%d", kedu_r );//把一个整数转换为字符串
+                     //在图像中显示文本字符串
+                     putText(R_dstImage, string_r , cvPoint(kedu_r*(R_dstImage.cols / 256),R_dstImage.rows),1,1,Scalar(0,255,255));
+              }
+              //B通道
+              cout<<"B在[140,230]灰度区间上的像素总数为"<<B_rangecount<<endl;
+              cout<<"B通道在灰度空间内像素总数为"<<B_count<<endl;
+              cout << "B通道，像素分布在区间上与总数的比值=" <<fixed<< setprecision(4) << B_percent <<endl;
+              //G通道
+              cout<<"G在[140,220]灰度区间上的像素总数="<<G_rangecount<<endl;
+              cout<<"G通道在灰度空间内像素总数="<<G_count<<endl;
+              cout << "G通道，像素分布在区间上与总数的比值=" <<fixed<< setprecision(4) << G_percent <<endl;
+              //R通道
+              cout<<"R在[30,120]灰度区间上的像素总数为"<<R_rangecount<<endl;
+              cout<<"R通道在灰度空间内像素总数="<<R_count<<endl;
+              cout << "R通道，像素分布在区间上与总数的比值=" <<fixed<< setprecision(4) << R_percent <<endl;
+              imshow( "B_Histogram", B_dstImage );
+              imshow( "G_Histogram", G_dstImage );
+              imshow( "R_Histogram", R_dstImage );
+              imwrite("B_Histogram.jpg", B_dstImage );
+              imwrite("G_Histogram.jpg", G_dstImage );
+              imwrite("R_Histogram.jpg", R_dstImage );
+       }
+}
+//宽高比（width_height_percent）   +像素值      判断垃圾类型
+// 依据区间占总像素的比重判断类型函数
+// B\G\R 区间占比 分别设为：0.55<B<0.75  0.55<G<0.7    0.75<R
+//宽高比设为0.62
+void judge_Type(int,void*){
+       //依据区间占总像素的比重判断
+       if(B_percent>=0.55&&B_percent<=0.75&&G_percent>=0.5&&G_percent<=0.7&&R_percent>=0.75&&width_height_percent<=0.65){
+              cout<<"判定结果：该垃圾类型为厨余垃圾"<<endl;
+       }
+       else{
+              cout<<"判定结果：该垃圾类型为非厨余垃圾"<<endl;
+       }
+}
+//将数据保存到本地txt文本中。
+void save_Data(int,void*){
+       //将duble类型数据转为字符串形式（4位小数）
+       //B
+       sprintf(B_countString,"%d", B_count );
+       sprintf(B_rangecountString, "%d", B_rangecount );
+       sprintf(B_percentString, "%0.4f", B_percent );
+       //G
+       sprintf(G_countString, "%d", G_count );
+       sprintf(G_rangecountString, "%d", G_rangecount );
+       sprintf(G_percentString, "%0.4f", G_percent );
+       //R
+       sprintf(R_countString,"%d", R_count );
+       sprintf(R_rangecountString,"%d", R_rangecount );
+       sprintf(R_percentString, "%0.4f", R_percent );
+       //矩形框宽高比值，把一个整数转换为字符串
+       sprintf(width_height_percentString,"%0.4f", width_height_percent );
+       //写入文本
+       ofstream fout;
+       fout.open("F:\\VS2012code\\1ConsoleApplication1\\1ConsoleApplication1\\Statistics_Result.txt");
+       fout<< "矩形框的宽高比为="<<width_height_percentString<<endl;
+       fout<<"B通道在灰度空间内像素总数="<<B_countString<<endl;
+       fout<<"B在[140,230]灰度区间上的像素总数="<<B_rangecountString<<endl;
+       fout<<"B通道，像素分布在区间上与总数的比值="<<B_percentString<<endl;
+       fout<<"G通道在灰度空间内像素总数="<<G_countString<<endl;
+       fout<<"G在[140,220]灰度区间上的像素总数="<<G_rangecountString<<endl;
+       fout<< "G通道，像素分布在区间上与总数的比值=" <<G_percentString<<endl;
+       fout<<"R通道在灰度空间内像素总数="<<R_countString<<endl;
+       fout<<"R在[30,120]灰度区间上的像素总数为"<<R_rangecountString<<endl;
+       fout<< "R通道，像素分布在区间上与总数的比值="<<R_percentString<<endl;
+       
+       //依据区间占总像素的比重判断
+       if(B_percent>=0.55&&B_percent<=0.75&&G_percent>=0.5&&G_percent<=0.7&&R_percent>=0.75&&width_height_percent<=0.65){
+              fout<<"判定结果：该垃圾类型为厨余垃圾"<<endl;
+       }
+       else{
+              fout<<"判定结果：该垃圾类型为非厨余垃圾"<<endl;
+       }
+       fout.close();
+}
