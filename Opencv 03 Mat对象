@@ -1,0 +1,118 @@
+//ASSERT()是一个调试程序时经常使用的宏，
+//在程序运行时它计算括号内的表达式，如果表达式为FALSE (或0), 程序将报告错误，并终止执行。
+//如果表达式不为0，则继续执行后面的语句。
+//部分复制：一般情况下只会复制Mat对象的头和指针部分，不会复制数据部分
+//     Mat A = imread(imgFilePath);
+//Mat B(A)  // 只复制
+// 完全复制：如果想把Mat对象的头部和数据部分一起复制，可以通过如下两个API实现
+
+// Mat F = A.clone(); 或 Mat G; A.copyTo(G);
+// cv::Mat构造函数
+// Mat M(2,2,CV_8UC3, Scalar(0,0,255))
+// 其中前两个参数分别表示行(row)跟列(column)、第三个CV_8UC3中的8表示每个通道占8位、U表示无符号、C表示Char类型、3表示通道数目是3，
+//第四个参数是向量表示初始化每个像素值是多少，向量长度对应通道数目一致
+//CV_<bit_depth>(S | U | F)C < number_of_channels>1
+//1--bit_depth-- - 比特数-- - 代表8bite, 16bites, 32bites, 64bites-- - 举个例子吧--比如说, 如
+//如果你现在创建了一个存储--灰度图片的Mat对象, 这个图像的大小为宽100, 高100, 那么, 现在这张
+//灰度图片中有10000个像素点，它每一个像素点在内存空间所占的空间大小是8bite, 8位--所以它对
+//应的就是CV_8
+//2--S | U | F--S--代表-- - signed int-- - 有符号整形
+//U--代表--unsigned int--无符号整形
+//F--代表--float-------- - 单精度浮点型
+//3--C<number_of_channels>----代表-- - 一张图片的通道数, 比如:
+//1--灰度图片--grayImg-- - 是--单通道图像
+//2--RGB彩色图像-------- - 是--3通道图像
+//3--带Alph通道的RGB图像--是--4通道图像
+//创建多维数组cv::Mat::create
+//      int sz[3] = {2,2,2};    
+//     Mat  L(3,sz, CV_8UC1, Scalar::all(0));  初始化像素数值都为0；
+//
+//cv::Mat::create实现
+//Mat M;
+//     M.create(4, 3, CV_8UC2); 四行三列 双通道
+//     M = Scalar(127, 127);  双通道每个赋值127
+//     cout << "M = " << endl << " " << M << endl << endl;
+//     uchar* firstRow = M.ptr<uchar>(0);
+//     printf("%d", *firstRow);
+//定义一个小数组
+//     Mat C = (Mat_<double>(3, 3) << 0, -1, 0, -1, 5, -1, 0, -1, 0);
+//     cout << "C = " << endl << " " << C << endl << endl;
+#include<opencv2\opencv.hpp>
+#include<iostream>
+using namespace std;
+using namespace cv;
+int main(int argc, char** aggv) {
+	Mat src;
+	src = imread("F:/test.png");
+	if (src.empty()) {
+		cout << "could not load image ..." << endl;
+		return -1;
+	}
+	namedWindow("input", CV_WINDOW_AUTOSIZE);
+	imshow("input", src);
+	//自己新建同类型大小 并自己赋值的mat对象
+	/*Mat dst;
+	dst = Mat(src.size(), src.type());
+	dst = Scalar(127, 0, 255);
+	namedWindow("output", CV_WINDOW_AUTOSIZE);
+	imshow("output", dst);*/
+	//自己利用copyTo函数生成复制版本mat对象
+	//Mat dst;
+	//src.copyTo(dst);
+	//namedWindow("copyput", CV_WINDOW_AUTOSIZE);
+	//imshow("copyput", dst);
+	//
+	//cvtcolor()函数是一个颜色空间转换函数， 此例为转为单通道灰度图
+	//Mat dst;
+	//cvtColor(src, dst, CV_BGR2GRAY);
+	//namedWindow("bgr2gray output", CV_WINDOW_AUTOSIZE);
+	//imshow("bgr2gray output", dst);
+	//printf("input image channels:%d\n", src.channels());
+	//printf("output image channels:%d\n", dst.channels());
+	//int cols = dst.cols;
+	//int rows = dst.rows;
+	//printf("rows:%d cols:%d\n", rows, cols);
+	//const uchar* firstRow = dst.ptr<uchar>(0);//  const uchar* current = myImage.ptr<uchar>(row);  获得当前行指针
+	//printf("first pixel value : %d\n", *firstRow);
+	// 构造函数 100行100列 8位 一通道 数值为127
+	/*Mat M(100, 100, CV_8UC1, Scalar(127));
+	cout << "M=" << endl << M << endl;
+	namedWindow("Mgouzao", CV_WINDOW_AUTOSIZE);
+	imshow("Mgouzao", M);*/
+	//还是构造函数 bgr （blue green red ） 赋值
+	/*Mat M1;
+	M1.create(src.size(), src.type());
+	M1 = Scalar(0, 0, 255);
+	cout << "M1=" << endl << M1 << endl;
+	namedWindow("Mgouzao", CV_WINDOW_AUTOSIZE);
+	imshow("Mgouzao", M1);
+	*/
+	//Mat csrc;
+	//Mat kernel = (Mat_<char>(3, 3) << 0, -1, 0, -1, 5, -1, 0, -1, 0);
+	//filter2D(src, csrc, -1, kernel);
+	//namedWindow("csrcphoto", CV_WINDOW_AUTOSIZE);
+	//imshow("csrcphoto", csrc);
+	//MATLAB形式的初始化方式： zeros(), ones(), :eyes() 。使用以下方式指定尺寸和数据类型
+	//Mat E = Mat::eye(4, 4, CV_64F);
+	/*E =
+	[1, 0, 0, 0;
+	0, 1, 0, 0;
+	0, 0, 1, 0;
+	0, 0, 0, 1]*/
+
+	//Mat O = Mat::ones(2, 2, CV_32F);
+	//O =
+	//     [1, 1;
+	//      1,1]
+	//Mat Z = Mat::zeros(3, 3, CV_8UC1);
+	/*Z =
+	[0, 0, 0;
+	0, 0, 0;
+	0, 0, 0]*/
+	Mat M2 = Mat::eye(2,2,CV_8UC1);
+	cout << "M2=" << endl << M2 << endl;
+	namedWindow("M2photo", CV_WINDOW_AUTOSIZE);
+	imshow("M2photo", M2);
+	waitKey(0);
+	return 0;
+}
