@@ -1,0 +1,38 @@
+ 图像修复在实际应用中，我们的图像常常会被噪声腐蚀，这些噪声或是镜头上的灰尘或水滴，或是旧照片的划痕，
+ 或者是图像遭到人为的涂画（比如马赛克）或者图像的部分本身已经损坏。如果我们想让这些受到破坏的额图片尽可能恢复到原样，
+ Opencv能帮我们做到吗？就是利用那些已经被破坏的区域的边缘， 即边缘的颜色和结构，根据这些图像留下的信息去推断被破坏的信息区的信息内容，
+ 然后对破坏区进行填补 ，以达到图像修补的目的。OpenCV中就是利用inpaint()这个函数来实现修复功能的。
+ void inpaint( InputArray src, InputArray inpaintMask,OutputArray dst, double inpaintRadius, int flags );
+* 第一个参数src，输入的单通道或三通道图像；
+	* 第二个参数inpaintMask，图像的掩码，单通道图像，大小跟原图像一致，inpaintMask图像上除了需要修复的部分之外其他部分的像素值全部为0；
+	* 第三个参数dst，输出的经过修复的图像；
+	* 第四个参数inpaintRadius，修复算法取的邻域半径，用于计算当前像素点的差值；
+	* 第五个参数flags，修复算法，有两种：INPAINT_NS 和I NPAINT_TELEA；
+
+	函数实现关键是图像掩码的确定，可以通过阈值筛选或者手工选定，按照这个思路，用三种方法生成掩码，对比图像修复的效果。
+#include <imgproc\imgproc.hpp>
+#include <highgui\highgui.hpp>
+#include <photo\photo.hpp>
+using namespace cv;
+//全区域阈值处理+Mask膨胀处理
+int main(){
+	Mat imageSource = imread("lol17.png");
+	if (!imageSource.data){
+		return -1;
+	}
+	imshow("原图", imageSource);
+	Mat imageGray;
+	//转换为灰度图
+	cvtColor(imageSource, imageGray, CV_RGB2GRAY, 0);
+	Mat imageMask = Mat(imageSource.size(), CV_8UC1, Scalar::all(0));
+	//通过阈值处理生成Mask
+	threshold(imageGray, imageMask, 240, 255, CV_THRESH_BINARY);Mat Kernel = getStructuringElement(MORPH_RECT, Size(3, 3));
+	//对Mask膨胀处理，增加Mask面积
+	dilate(imageMask, imageMask, Kernel);
+	//图像修复
+	inpaint(imageSource, imageMask, imageSource, 5, INPAINT_TELEA);
+	imshow("Mask", imageMask);
+	imshow("修复后", imageSource);waitKey();
+}
+跟原图还是发生了一些差异，比如图中剑圣头上的那颗亮点，颜色发生了变化。这个就是修复后的副作用！
+	毕竟作出了修复，付点代价还是要的。受损是由于是图像全区域做阈值处理获得的掩码，图像上部分区域也被当做掩码对待，导致部分图像受损。
