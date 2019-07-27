@@ -1,0 +1,58 @@
+//调整图像亮度和对比度属于像素变换-点操作 数值（0-255）
+//数值越大越向白色（255）靠拢 ，数值越小越向黑色靠拢
+//g(i,j)=af(i,j)+b  其中a>0.   b 是增益变量
+//Mat new_image = Mat::zeros(image.size(), image.type());  创建一张跟原图像大小和类型一致的空白图像、像素值初始化为0
+//saturate_cast<uchar>(value)确保值大小范围为0~255之间
+//Mat.at<Vec3b>(y, x)[index] = value 给每个像素点每个通道赋值
+#include <opencv2/opencv.hpp>
+#include <iostream>
+using namespace cv;
+int main(int argc, char** argv) {
+	Mat src,src1,dst,dst1;
+	src = imread("F:/PHOTO/test.png");
+	if (!src.data) {
+		printf("could not load image...\n");
+		return -1;
+	}
+	cvtColor(src, src1, CV_BGR2GRAY);//转换为灰度图 命名为src1
+	namedWindow("inputimage1", CV_WINDOW_AUTOSIZE);
+	imshow("inputimage1", src);
+	namedWindow("inputimage2", CV_WINDOW_AUTOSIZE);
+	imshow("inputimage2", src1);
+
+	// 亮度与对比度 改变
+	int height = src.rows;
+	int width = src.cols;
+
+	dst = Mat::zeros(src.size(), src.type());//新建一个dst图像文件，大小一致 类型一致
+	dst1 = Mat::zeros(src.size(), src.type());//新建一个dst图像文件，大小一致 类型一致
+	float alpha = 1.5;
+	float beta = 10;
+	Mat m1;
+	src.convertTo(m1, CV_32F); //将src图像数据类型转换成CV_32F  第一个参数是输出图像，第二个是类型
+	for (int row = 0; row < height; row++) {
+		for (int col = 0; col < width; col++) {
+			if (m1.channels() == 3) {
+				//查出三通道的像素点
+				float b = m1.at<Vec3f>(row, col)[0];// blue
+				float g = m1.at<Vec3f>(row, col)[1]; // green
+				float r = m1.at<Vec3f>(row, col)[2]; // red
+				// 对新建空白的的dst图像文件
+				dst.at<Vec3b>(row, col)[0] = saturate_cast<uchar>(b * alpha + beta);
+				dst.at<Vec3b>(row, col)[1] = saturate_cast<uchar>(g * alpha + beta);
+				dst.at<Vec3b>(row, col)[2] = saturate_cast<uchar>(r * alpha + beta);
+			}
+			else if (src1.channels() == 1) {
+				//查出单通道的像素点
+				float v = src1.at<uchar>(row, col);
+				dst1.at<uchar>(row, col) = saturate_cast<uchar>(v * alpha + beta);
+			}
+		}
+	}
+	namedWindow("3tongdaoduibi", CV_WINDOW_AUTOSIZE);
+	imshow("3tongdaoduibi", dst);
+	namedWindow("1tongdaoduibi", CV_WINDOW_AUTOSIZE);
+	imshow("1tongdaoduibi", dst1);
+	waitKey(0);
+	return 0;
+}
