@@ -1,0 +1,121 @@
+1.霍夫变换综述
+	霍夫变换是图像处理中从图像中识别几何形状的基本方法之一，主要用来从图像中分离出具有某种相同特征的几何形状。
+
+	opencv提供三种不同的霍夫线变换：标准霍夫变换(Standard Hough Transform, SHT)、多尺度霍夫 变换(Multi-Scale Hough Transform, MSHT)和
+	累计概率霍夫变换(Progressive Probabilistic Hough Transform, PPHT).其中多尺度霍夫变换(MSHT)为经典霍夫变换(SHT)在多尺度下的一个变种
+	HoughLines函数来调用标准霍夫变换(SHT)和多尺度霍夫变换(MSHT).
+	HoughLinesP函数用于调用累计概率霍夫变换PPHT。累计概率霍夫变换执行效率很高。
+
+	霍夫线变换是用来寻找直线的方法，在使用霍夫线变换之前首先要对图像进行边缘检测的处理，也即霍夫线变换的直接输入只能是边缘二值图像。
+	霍夫线变换实现原理如下：
+	(1). 一条直线在图像二维空间可由两个变量表示。如：
+	a.在笛卡尔坐标系：可由参数(m, b)斜率和截距表示。
+	b.在极坐标系：可由参数(r, θ)极径和极角表示
+
+
+	对于霍夫变换，我们将用极坐标系来表示直线。因此直线的表达式可为：
+	化简的：r=xcosθ+ysinθ
+	(2). 一般来说对于点（x0，y0）,我们可以将通过这个点的一簇直线同一定义为：
+	这就意味着对于每一对  代表一条通过点 （x0，y0）的直线。
+	(3). 如果对于一个给定像素点（x0，y0），我们在极坐标,对极径极角平面( 只绘出满足条件r>0和0<θ<2π。)绘出所有通过它的直线，将得到一条正弦曲线。例如对于给定点和我们可以绘出下图：
+
+	(4). 我们可以对图像中所有像素点进行上述操作，如果两个不同点经过上述操作后得到的曲线在平面θ-r相交就意味着它们通过同一条直线。
+	接上面的例子，我们继续对点x1=9，y1=4和点x2=12, y2=3绘图得到下图：
+
+	这三条曲线在θ-r平面相交于点(0.925, 9.6), 坐标表示的是参数对(θ, r)或者是说点(x0, y0),点(x1, y1)和点(x2, y2)组成的平面内的直线。
+	(5).上述说明一般来讲，一条能够通过在平面θ-r寻找交于一点的曲线数量检测。
+	越多曲线交于一点也就意味着这个交点表示的直线由更多的点组成。一般来说我们可以通过设置直线上点的阈值来定义多少条曲线交于一点认为检测到了一条直线
+	(6). 这就是霍夫变换要做的工作，它追中图像中的每个点对应曲线间的交点，如果交于一点的曲线数量超过了阈值，
+	那么可以认为这个交点所代表的参数对(θ, rθ)在原图像中为一条直线
+	* 
+	标准的霍夫变换 cv::HoughLines从平面坐标转换到霍夫空间，最终输出是极坐标空间
+	* 
+	霍夫变换直线概率 cv::HoughLinesP最终输出是直线的两个点
+
+	2.1 HoughLines()函数
+	在opencv中标准霍夫变换(SHT)和多尺度霍夫变换(MSHT)是由HoughLines函数调用的。其定义如下：
+	HoughLines  ( InputArray  image,  
+	OutputArray  lines,  
+	double  rho,  
+	double  theta,  
+	int  threshold,  
+	double  srn = 0,  
+	double  stn = 0,  
+	double  min_theta = 0,  
+	double  max_theta = CV_PI  
+	)
+	参数解释
+	.image: 8位单通道二进制图像
+	.lines: 输出直线矢量，每一条线有两个元素的矢量(ρ, θ)表示，ρ是离坐标原点(0, 0)也就是图像左上角的距离，θ是弧度线条旋转角度(0度表示垂直线，π/2度表示水平线)。
+	.rho: 以像素为单位的距离精度，其它表述还有是直线搜索时的进步尺寸的单位半径（每次增加r的大小，一般为1）
+	.theta: 以弧度为单位的角度精度。其它表述还有是直线搜索时的进步尺寸的单位角度。（每次旋转角度增加的数量，一般为1）
+	.threshold: 累加平面的阈值参数，即识别某部分为图中的一条直线时它在累加平面中 多少条线交汇，必须达到的值。大于阈值threshold的直线才可以被检测通过并返回到结果中。
+	. srn: 对于多尺度的霍夫变换，这是第三个参数进步尺寸rho的除数距离。粗略的累加器进步尺寸直接是第三个参数rho， 而精确的累加器进步尺寸为rho/srn。有默认值0
+	.stn对于多尺度霍夫变换，stn表示第四个参数进步尺寸的单位角度theta的除数距离。且如果srn和stn同时为0， 就表示使用经典的霍夫变换，扶着这两个参数都应该为正数。
+	经典霍夫变换和多尺度霍夫变换就是在这进行区分的。有默认值0。
+
+	HoughLinesP函数用于调用累计概率霍夫变换PPHT。累计概率霍夫变换执行效率很高。
+	直接得出线的平面两个坐标。
+
+	cv::HoughLinesP(
+	InputArray src, // 输入图像，必须8-bit的灰度图像
+	OutputArray lines, // 输出的极坐标来表示直线
+	double rho, // 尺寸的单位半径（每次增加r的大小，一般为1）
+	double theta, //（每次旋转角度增加的数量，一般为1）一般取值CV_PI/180
+	int threshold, // 阈值，只有获得足够交点的极坐标点才被看成是直线
+	double minLineLength=0;// 最小直线长度
+double maxLineGap=0;// 最大间隔
+)
+
+
+#include<opencv2/opencv.hpp>
+#include<iostream>
+#include <math.h>
+	using namespace cv;
+using namespace std;
+
+//先进行canny边缘检测
+//1.高斯模糊--GaussianBlur消除噪声。 一般情况下，使用高斯平滑滤波器卷积降噪。
+//因为canny是对噪声敏感的算法，所以先降噪，但是降噪不要太过，以免丢失
+//2.灰度转换--cvtColor　　
+//3.计算梯度--Sobel / Scharr
+//4.非最大信号抑制
+//5.高低阈值输出二值图像
+int main(int argc, char** argv) {
+	Mat src, gray, dst1, dst2;
+	int t1 = 50;//低阈值
+	int t2 = t1 * 2;//高阈值
+	int max_value = 255;
+	src = imread("F:/PHOTO/building.jpg");
+	if (!src.data) {
+		printf("could not load image...\n");
+		return -1;
+	}
+	imshow("input_img", src);
+	//Gaussian 模糊
+	GaussianBlur(src, dst1, Size(3, 3),0, 0, BORDER_DEFAULT);
+	//转灰度图像
+	cvtColor(dst1, gray, CV_BGR2GRAY);
+
+	//canny边缘检测算法 输入、输出、低阈值、高阈值、算子size、true：归一化（根号下x梯度平方+y梯度平方）
+	Canny(gray, dst2, t1, t2, 3, true);
+	imshow("canny_demo", dst2);
+	//霍夫变换
+
+	vector<Vec4f> lines;//vector 数据容器
+
+	HoughLinesP(dst2, lines, 1, CV_PI / 180, 150, 0, 0);
+	//输出的line是一个线的集合，每条线有两个点，共四个数值。
+	Scalar color = Scalar(0, 100, 255);
+	//将容器中的线，一条一条地取出
+	for (int i = 0; i < lines.size(); i++) {
+		//取出第几条线
+		Vec4f  hline = lines[i];
+		//每次获取的线 都有四个数（是一个数组[0,1,2,3]），组成两个点
+		//画线
+		line(dst2,Point(hline[0], hline[1]),Point(hline[2],hline[3]),color,3,LINE_8);
+	}
+	imshow("houghbinahuan", dst2);
+	waitKey(0);
+	return 0;
+}
