@@ -1,0 +1,71 @@
+//课程12：提取水平与垂直线,
+//膨胀，输出的像素值是结构元素覆盖下输入图像的最大像素值
+//腐蚀，输出的像素值是结构元素覆盖下输入图像的最小像素值
+//提取步骤：
+//输入图像彩色图像 imread
+//转换为灰度图像 – cvtColor
+//转换为二值图像 – adaptiveThreshold
+//定义结构元素
+//开操作 （腐蚀 + 膨胀）提取 水平与垂直线
+
+#include<opencv2/opencv.hpp>
+#include<iostream>
+using namespace cv;
+int main(int agrc, char** argv) {
+	Mat src, dst, dst1, dst2,dst3,binImg;
+	src = imread("F:/PHOTO/hengxian.jpg");
+	if (!src.data) {
+		printf("could not load image...\n");
+	}       
+	char Input[] = "inputimage"
+		; 
+	char Output1[] = "outputimage1"; 
+	char Output2[] = "outputimage2"; 
+	char gray[] = "grayimage";   
+	char binchange[] = "binchangeimage"; 
+	//输出原图       
+	namedWindow(Input, CV_WINDOW_AUTOSIZE); 
+	imshow(Input, src); 
+	//转换成灰度图片 
+	cvtColor(src,dst,CV_BGR2GRAY); 
+	namedWindow(gray, CV_WINDOW_AUTOSIZE);
+	imshow(gray, dst);
+	//由灰度图dst转换成二值图像binImg， 而自适应阈值，是根据像素的邻域块的像素值分布来确定该像素位置上的二值化阈值。
+	//void adaptiveThreshold(InputArray src, OutputArray dst, double maxValue, int adaptiveMethod, int thresholdType, int blockSize, double C)
+	// 参数1：InputArray src：源图像
+	// 参数2：OutputArray dst：输出图像，与源图像大小一致
+	// 参数3：double maxValue：二值化图像最大值
+	// 参数4：int adaptiveMethod：在一个邻域内计算阈值所采用的算法，ADAPTIVE_THRESH_MEAN_C 平均值，ADAPTIVE_THRESH_GAUSSIAN_C 高斯分布加权和。
+	// 参数5：int thresholdType：这是阈值类型，只有两个取值，分别为 THRESH_BINARY 和THRESH_BINARY_INV 
+	// 参数6：int blockSize：adaptiveThreshold的计算单位是像素的邻域块，（奇数，大于1）
+	// 参数7：double C：这个参数实际上是一个偏移值调整量       
+	adaptiveThreshold(dst,binImg,255,ADAPTIVE_THRESH_MEAN_C,THRESH_BINARY,15,-2);
+	namedWindow(binchange, CV_WINDOW_AUTOSIZE); 
+	imshow(binchange, binImg);      
+	//水平结构元素  
+	//size(x,y):规格 横向的1/16，竖向为1像素 
+	Mat Hline = getStructuringElement(MORPH_RECT,Size(binImg.cols/16,1),Point(-1,-1) );  
+	//竖直架构元素    
+	//size(x,y):规格 横向为1像素 ，纵向为1/16， 
+	Mat Vline = getStructuringElement(MORPH_RECT, Size( 1,binImg.rows/16), Point(-1, -1));   
+	//矩形结构元素     
+	Mat Rect = getStructuringElement(MORPH_RECT, Size(3, 3), Point(-1, -1));     
+	//水平线   开操作   
+	morphologyEx(binImg, dst1, CV_MOP_OPEN, Hline, Point(-1, -1), 1, 0);     
+	//竖直线    开操作     
+	morphologyEx(binImg, dst2, CV_MOP_OPEN, Vline, Point(-1, -1), 1, 0);     
+	//矩形    开操作   
+	morphologyEx(binImg, dst3, CV_MOP_OPEN, Rect, Point(-1, -1), 1, 0);         
+	//转为白色背景  
+	bitwise_not(dst1, dst1);   
+	bitwise_not(dst2, dst2);   
+	bitwise_not(dst3, dst3);    
+	namedWindow("shuipingkai", CV_WINDOW_AUTOSIZE);      
+	imshow("shuipingkai", dst1);    
+	namedWindow("shuzhikai", CV_WINDOW_AUTOSIZE);   
+	imshow("shuzhikai", dst2);   
+	namedWindow("juxingkai", CV_WINDOW_AUTOSIZE);  
+	imshow("juxingkai", dst3);    
+	waitKey(0);     
+	return 0;
+}
