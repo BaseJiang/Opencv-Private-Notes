@@ -1,0 +1,96 @@
+//threshold()函数对图像的阈值进行处理，threshold()共支持五中类型的阈值化方式，分别是二进制阈值化、反二进制阈值化、截断阈值化、阈值化为0和反阈值化为0。
+//1.二进制阈值化
+//在运用二进制阈值化操作时，首先指定一个阈值量即像素的灰度值，遍历图像中像素值，
+//大于这个阈值的像素均设置为最大像素值(如8位灰度值最大为255)，灰度值小于设定阈值的像素点像素值重新赋值为0。
+//
+//2.反二进制阈值化
+//与二进制阈值化相同的是也要首先指定一个阈值，不同的是在对图像进行阈值化操作时正好与二进制阈值化相反，
+//当图像像素点超过这个阈值的时候像素点重新赋值为0，当像素值低于该阈值时即赋值为最大值
+//
+//3.截断阈值化
+//根据给定的像素值阈值，图像中大于该阈值的像素点被重新设置为该阈值（高于阈值的被设置为阈值），而小于该阈值的像素值保持不变。
+//
+//4.阈值化为0
+//阈值化为0类型，像素点的灰度值如果大于该阈值，则像素值不变，如果像素点的灰度值小于该阈值，则像素值设置为0。
+//
+//5.反阈值化为0
+//像素值大于该阈值的像素重新赋值为0，而小于该阈值的像素值则保持不变。
+//API函数threshold()函数
+//double cv::threshold(InputArray src,OutputArray dst,double thresh,double maxval,int type)
+//参数1：InputArray src : 输入图像，可以是Mat类型，图像必须为单通道8位或32位浮点型图像
+//参数2：OutputArray dst : 输出图像，与输入图像尺寸和类型相同
+//参数3：double thresh : 设定的阈值
+//参数4：double maxval : 使用THRESH_BINARY和THRESH_BINARY_INV类型的最大值
+//参数5：int type : 阈值化类型，可以通过ThresholdTypes查看，
+//Trackbar
+//createTrackbar是Opencv中的API，其可在显示图像的窗口中快速创建一个滑动控件，用于手动调节阈值，具有非常直观的效果。
+//int createTrackbar(const string& trackbarname, const string& winname, int* value, int count,TrackbarCallback onChange = 0,
+//     void* userdata = 0);
+//第一个参数，const string& 类型的trackbarname，表示轨迹条的名字，用来代表我们创建的轨迹条。
+//第二个参数，const string& 类型的winname，填窗口的名字，表示这个轨迹条会依附到哪个窗口上，即对应namedWindow（）创建窗口时填的某一个窗口名。
+//第三个参数，int* 类型的value，一个指向整型的指针，表示滑块的位置。并且在创建时，滑块的初始位置就是该变量当前的值。
+//第四个参数，int类型的count，表示滑块可以达到的最大位置的值。PS : 滑块最小的位置的值始终为0。
+//第五个参数，TrackbarCallback类型的onChange，首先注意他有默认值0。这是一个指向回调函数的指针，每次滑块位置改变时，
+//这个函数都会进行回调。并且这个函数的原型必须为void XXXX(int, void*); 其中第一个参数是轨迹条的位置，第二个参数是用户数据（看下面的第六个参数）。
+//如果回调是NULL指针，表示没有回调函数的调用，仅第三个参数value有变化。
+//第六个参数，void* 类型的userdata，他也有默认值0。这个参数是用户传给回调函数的数据，用来处理轨迹条事件。如果使用的第三个参数value实参是全局变量的话，完全可以不去管这个userdata参数。
+#include<opencv2/opencv.hpp>
+#include<iostream>
+#include<math.h>
+void threshold_binary();
+void threshold_binary_inv();
+void threshold_trunc();
+void threshold_tozero();
+void threshold_tozero_inv();
+using namespace cv;
+Mat src, dst1,dst2,dst3,dst4,dst5, gray;
+int threshold_value = 127;
+int threshold_maxvalue = 255;
+int main(int argc, char** argv) {
+	src = imread("F:/PHOTO/dog.jpg");
+	if (!src.data) {
+		printf("could not load image.../n");
+	}
+	namedWindow("input", CV_WINDOW_AUTOSIZE);
+	imshow("input", src);
+	//将原图像转为灰色图像
+	cvtColor(src, gray, CV_BGR2GRAY);
+	namedWindow("grayImg", CV_WINDOW_AUTOSIZE);
+	imshow("grayImg", gray);
+
+	//未解决参数5 回调函数问题？？
+	//createTrackbar("thresgoldValue", "binary", &threshold_value, threshold_maxvalue, threshold_binary);
+	threshold_binary();
+	threshold_binary_inv();
+	threshold_trunc();
+	threshold_tozero();
+	threshold_tozero_inv();
+
+	waitKey(0);
+	return 0;
+}
+void threshold_binary() {
+	threshold(gray,dst1, threshold_value, threshold_maxvalue,THRESH_BINARY);
+	namedWindow("binary", CV_WINDOW_AUTOSIZE);
+	imshow("binary",dst1);
+}
+void threshold_binary_inv() {
+	threshold(gray, dst2, threshold_value, threshold_maxvalue, THRESH_BINARY_INV);
+	namedWindow("binary_inv", CV_WINDOW_AUTOSIZE);
+	imshow("binary_inv", dst2);
+}
+void threshold_trunc() {
+	threshold(gray, dst3, threshold_value, threshold_maxvalue, CV_THRESH_TRUNC);
+	namedWindow("trunc", CV_WINDOW_AUTOSIZE);
+	imshow("trunc", dst3);
+}
+void threshold_tozero() {
+	threshold(gray, dst4, threshold_value, threshold_maxvalue, THRESH_TOZERO);
+	namedWindow("tozero", CV_WINDOW_AUTOSIZE);
+	imshow("tozero", dst4);
+}
+void threshold_tozero_inv() {
+	threshold(gray, dst5, threshold_value, threshold_maxvalue, THRESH_TOZERO_INV);
+	namedWindow("tozero_inv", CV_WINDOW_AUTOSIZE);
+	imshow("tozero_inv", dst5);
+}
