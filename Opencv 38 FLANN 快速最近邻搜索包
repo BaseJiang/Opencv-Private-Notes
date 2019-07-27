@@ -1,0 +1,84 @@
+//课程38  FLANN是快速最近邻搜索包（Fast_Library_for_Approximate_Nearest_Neighbors）的简称。
+//它是一个对大数据集和高维特征进行最近邻搜索的算法的集合，而且这些算法都已经被优化过了。
+//在面对大数据集是它的效果要好于BFMatcher。
+//使用FLANN匹配，我们需要传入两个字典作为参数。这两个用来确定要使用的算法和其他相关参数等。
+//最近邻搜索的问题在图像识别、数据压缩、模式识别和分类、机器学习、文档检索系统、统计和数据分析等方面是一个重大问题，
+//在高维空间中解决这个问题似乎是一个非常难以执行的任务，没有算法明显优于标准的蛮力搜索，因此越来越多的人把兴趣点转向执行最近邻搜索的一类算法。
+//FLANN（Fast Library for Approximate Nearest Neighbors）时目前最完整的近似近邻开源库，不但实现了一系列查找算法还包含了一种自动选取最快算法的机制。
+#include"pch.h"
+#include<opencv2/opencv.hpp>
+#include<opencv2/xfeatures2d.hpp>
+#include<iostream>
+#include <stdio.h>
+#include <opencv2\core\core.hpp>
+#include <opencv2\highgui\highgui.hpp>
+#include <opencv2\imgproc\imgproc.hpp>
+using namespace cv;
+using namespace std;
+using namespace cv::xfeatures2d;
+int main(int argc, char** argv) {
+	Mat src1 = imread("F:/PHOTO/dog.jpg");
+	Mat src2 = imread("F:/PHOTO/dog1.jpg");
+	if (src1.empty() || src2.empty()) {
+		cout << "can not find the photo.." << endl;
+	}
+	//设置检测特征点
+	int minHessian = 800;
+	//定义一个检测器
+	//创建一个surf类检测器对象并初始化
+	Ptr<SURF> detector = SURF::create(minHessian,4,3,true,true);
+	vector<KeyPoint> keypoint1, keypoint2;
+	//找出关键点
+	detector->detect(src1,keypoint1,Mat());
+	detector->detect(src2, keypoint2, Mat());
+	//计算特征点描述
+	Ptr<SURF> extractor = SURF::create();
+	Mat descriptor1, descriptor2;
+	extractor->compute(src1,keypoint1,descriptor1);
+	extractor->compute(src2, keypoint2, descriptor2);
+
+	//使用FLANN进行匹配
+	//实例化一个FLANN匹配器(括号里可以选择匹配方法)
+	FlannBasedMatcher matcher;
+	//DMatch是用来描述匹配好的一对特征点的类，包含这两个点之间的匹配信息
+	//比如左图有个特征m，它和右图的特征点n最匹配，这个DMatch就记录它俩最匹配，
+	//并且还记录m和n的特征向量的距离和其他信息，这个距离在后面用来做筛选
+	vector<DMatch>matches;
+	//匹配，数据来源是特征向量，结果存放在DMatch类型里面 
+	matcher.match(descriptor1, descriptor2, matches);
+
+	//求最小最大距离
+	//反向逼近
+	double max_dist = 0;
+	double min_dist = 1000;
+	for (int i = 0; i < descriptor1.rows; i++) {
+		double distance = matches[i].distance;
+		if (distance > max_dist) {
+			max_dist = distance;
+		}
+		if (distance < min_dist) {
+			min_dist = distance;
+		}
+	}
+	printf("max distance:%f\n",max_dist);
+	printf("min distance:%f\n", min_dist);
+	//筛选比较好的匹配点
+	vector<DMatch> good_matches;
+	for (int i = 0; i < descriptor1.rows; i++) {
+		double distance = matches[i].distance;
+		//距离小于范围的压入新的DMatch
+		if (distance < max(min_dist * 2, 0.02)) {
+
+			good_matches.push_back(matches[i]);
+		}
+	}
+
+	//drawMatches这个函数直接画出摆在一起的图
+	Mat MatchesImage;  
+	//绘制匹配点 
+	drawMatches(src1, keypoint1, src2, keypoint2, good_matches, MatchesImage, Scalar::all(-1), Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS); 
+	imshow("FLANN Image", MatchesImage);
+
+	waitKey(0);
+	return 0;
+}
