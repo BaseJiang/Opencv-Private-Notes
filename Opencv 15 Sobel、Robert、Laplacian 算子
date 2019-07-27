@@ -1,0 +1,143 @@
+//卷积是图像处理中一个操作，是kernel在图像的每个像素上的操作。
+//Kernel本质上一个固定大小的矩阵数组，其中心点称为锚点(anchor point)
+//把kernel放到像素数组之上，求锚点周围覆盖的像素乘积之和（包括锚点），用来替换锚点覆盖下像素点值称为卷积处理。
+
+//1.Sobel
+//其主要用于边缘检测，在技术上它是以离散型的差分算子，用来运算图像亮度函数的梯度的近似值，缺点是Sobel算子并没有将图像的主题与背景严格地区分开来，
+//换言之就是Sobel算子并没有基于图像灰度进行处理，由于Sobel算子并没有严格地模拟人的视觉生理特征，所以提取的图像轮廓有时并不能令人满意，
+//Sobel 算子有两个，一个是检测水平边沿的；另一个是检测垂直平边沿的 。Sobel算子另一种形式是各向同性Sobel(Isotropic Sobel)算子，
+//也有两个，一个是检测水平边沿的 ，另一个是检测垂直平边沿的 。各向同性Sobel算子和普通Sobel算子相比，它的位置加权系数更为准确，
+//在检测不同方向的边沿时梯度的幅度一致。由于Sobel算子是滤波算子的形式，用于提取边缘，可以利用快速卷积函数，简单有效，因此应用广泛。
+//美中不足的是，Sobel算子并没有将图像的主体与背景严格地区分开来，换言之就是Sobel算子没有基于图像灰度进行处理，
+//由于Sobel算子没有严格地模拟人的视觉生理特征，所以提取的图像轮廓有时并不能令人满意。
+//
+//2.Robert算子
+//根据任一相互垂直方向上的差分都用来估计梯度，Robert算子采用对角方向相邻像素之差
+//Roberts算子：边缘定位准，但是对噪声敏感。适用于边缘明显且噪声较少的图像分割。
+//Roberts边缘检测算子是一种利用局部差分算子寻找边缘的算子, Robert算子图像处理后结果边缘不是很平滑。
+//经分析，由于Robert算子通常会在图像边缘附近的区域内产生较宽的响应，故采用上述算子检测的边缘图像常需做细化处理，边缘定位的精度不是很高。
+//
+//3.Prewitt算子
+//该算子与Sobel算子类似，只是权值有所变化，但两者实现起来功能还是有差距的，据经验得知Sobel要比Prewitt更能准确检测图像边缘。
+//
+//4.Laplacian算子
+//是二阶微分算子。其具有各向同性，即与坐标轴方向无关，坐标轴旋转后梯度结果不变。但是，其对噪声比较敏感，
+//所以，图像一般先经过平滑处理，因为平滑处理也是用模板进行的，所以，通常的分割算法都是把Laplacian算子和平滑算子结合起来生成一个新的模板。
+//Laplacian算子一般不以其原始形式用于边缘检测，因为其作为一个二阶导数，Laplacian算子对噪声具有无法接受的敏感性；同时其幅值产生算边缘，
+//这是复杂的分割不希望有的结果；最后Laplacian算子不能检测边缘的方向,所以Laplacian在分割中所起的作用包括：（1）利用它的零交叉性质进行边缘定位；
+//2）确定一个像素是在一条边缘暗的一面还是亮的一面；一般使用的是高斯型拉普拉斯算子（Laplacian of a Gaussian, LoG)，由于二阶导数是线性运算，
+//利用LoG卷积一幅图像与首先使用高斯型平滑函数卷积改图像，然后计算所得结果的拉普拉斯是一样的。
+//
+//5.Canny算子
+//该算子功能比前面几种都要好，但是它实现起来较为麻烦，Canny算子是一个具有滤波，增强，检测的多阶段的优化算子，在进行处理前，
+//Canny算子先利用高斯平滑滤波器来平滑图像以除去噪声，Canny分割算法采用一阶偏导的有限差分来计算梯度幅值和方向，在处理过程中，
+//Canny算子还将经过一个非极大值抑制的过程，最后Canny算子还采用两个阈值来连接边缘。
+//常见算子
+//掩模操作  锐化算子
+//[0,-1,0
+// -1,5,-1
+//  0,-1,0 ]
+//Sobel 算子
+//[-1,0,1
+// -2,0,2
+// -1,0,1 ]
+//
+//[-1,-2,-1
+//  0,0,0
+//  1,2,1 ]
+//
+//Robert算子 [1, 0   
+//        0,-1 ]
+//
+//        [ 0, 1
+//        - 1, 0 ]           
+//
+//拉普拉斯算子
+//
+//[0,-1,0
+// -1,4,-1
+// 0,-1,0 ]
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <math.h>
+using namespace cv;
+int main(int argc, char** argv) {
+	Mat src, dst1,dst2,dst3,dst4,dst5,dst6;
+	src = imread("F:/PHOTO/test.png");
+	if (!src.data) {
+		printf("could not load image..../n");
+		return -1;
+	}
+	char INPUT[] = "inputImg";
+	namedWindow("INPUT",CV_WINDOW_AUTOSIZE);
+	imshow("INPUT", src);
+
+	//Robert算子X方向 的卷积核
+	Mat Robert_X = (Mat_<int>(2, 2) << 1, 0, 0, -1);
+
+	//使用卷积运算函数filter2d，带入相应的算子
+	filter2D(src,dst1,-1,Robert_X,Point(-1,-1),0.0);
+	namedWindow("Robert_X_Img", CV_WINDOW_AUTOSIZE);
+	imshow("Robert_X_Img", dst1);
+
+	//Robert算子Y方向 的卷积核
+	Mat Robert_Y = (Mat_<int>(2, 2) << 0, 1, -1, 0);
+
+	//使用卷积运算函数filter2d，带入相应的算子
+	filter2D(src, dst2, -1, Robert_Y, Point(-1, -1), 0.0);
+	namedWindow("Robert_Y_Img", CV_WINDOW_AUTOSIZE);
+	imshow("Robert_Y_Img",dst2);
+
+	//Sobel算子X方向 的卷积核
+	Mat Sobel_X = (Mat_<int>(3, 3) << -1,0,1,-2,0,2,-1,0,1);
+
+	//使用卷积运算函数filter2d，带入相应的算子
+	filter2D(src, dst3, -1, Sobel_X, Point(-1, -1), 0.0);
+	namedWindow("Sobel_X_Img", CV_WINDOW_AUTOSIZE);
+	imshow("Sobel_X_Img", dst3);
+
+	//Sobel算子Y方向 的卷积核
+	Mat Sobel_Y = (Mat_<int>(3,3) << -1,-2,-1,0,0,0,1,2,1);
+
+	//使用卷积运算函数filter2d，带入相应的算子
+	filter2D(src, dst4, -1, Sobel_Y, Point(-1, -1), 0.0);
+	namedWindow("Sobel_Y_Img", CV_WINDOW_AUTOSIZE);
+	imshow("Sobel_Y_Img", dst4);
+
+	//使用拉普拉斯算子 的卷积核
+	Mat Laplacian_Kernel = (Mat_<int>(3, 3) << 0, -1, 0, -1, 4, -1, 0, -1, 0);
+
+	filter2D(src,dst5,-1,Laplacian_Kernel,Point(-1,-1),0.0);
+	namedWindow("Laplacian_Kernel_Img", CV_WINDOW_AUTOSIZE);
+	imshow("Laplacian_Kernel_Img", dst5);
+	//自定义模糊卷积算子，其中 kernel是可以自定义的卷积核
+	//filter2D方法filter2D(
+	//Mat src, //输入图像
+	//Mat dst, // 输出模糊图像
+	//int depth, // 图像深度32/8
+	//Mat kernel, // 卷积核/模板
+	//Point anchor, // 锚点位置
+	//double delta // 计算出来的像素+delta
+	//)
+	//k=1/(3*3)*   [1,1,1
+	//           1,1,1
+	//           1,1,1]
+
+	int ksize = 0;
+	int c = 0;
+	int index = 0;
+	while (true) {
+		c = waitKey(500);
+		if ((char)c == 27) { // 27对应esc按键
+			break;
+		}
+		ksize = 5 + (index % 8) * 2;
+		Mat customKernel = Mat::ones(Size(ksize, ksize), CV_32F) / (float)(ksize * ksize);
+		filter2D(src,dst6,-1,customKernel,Point(-1,-1),0.0);
+		namedWindow("customKernel_Img", CV_WINDOW_AUTOSIZE);
+		imshow("customKernel_Img", dst6);
+		index++;
+	}
+	waitKey(0);
+	return 0;
+}
