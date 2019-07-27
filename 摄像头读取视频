@@ -1,0 +1,46 @@
+// readAndSaveVideo.cpp : 定义控制台应用程序的入口点。
+#include "stdafx.h"
+//读取存入视频文件
+#include<opencv2/opencv.hpp>
+#include<iostream>
+using namespace std;
+using namespace cv;
+int main(int aggc,char**argv){
+Mat in_frame,out_frame;
+const char win1[]="Grabbing...";
+const char win2[]="Recording...";
+//每秒帧数
+double fps=30;
+char file_out[]="record.avi";
+//打开默认摄像头
+VideoCapture inVid(0);
+if(!inVid.isOpened()){
+//检查错误
+       cout<<"Error! Video file not opened..\n"<<endl;
+       return -1;
+}
+//获取输入视频的高度和宽度
+int width=(int)inVid.get (CV_CAP_PROP_FRAME_WIDTH);
+int height=(int)inVid.get(CV_CAP_PROP_FRAME_HEIGHT);
+VideoWriter recVid;
+recVid.open("F:\\PHOTO\\test.avi",CV_FOURCC('M','P','4','2'),fps,Size(width,height));
+if(!recVid.isOpened()){
+       cout<<"Error!:Video file not opened....\n"<<endl;
+       return -1;
+}
+while(1){
+//从摄像头读取帧（抓取并解码）
+inVid>>in_frame;
+//将帧转换为灰度图像
+cvtColor(in_frame,out_frame,CV_BGR2GRAY);
+//将帧图写入视频文件，编码并保存
+recVid << out_frame;
+imshow("读取视频",in_frame);
+imshow("保存视频",out_frame);
+if(waitKey(1000/fps)>=0)
+       break;
+}
+//关闭摄像机
+inVid.release();
+return 0;
+}
