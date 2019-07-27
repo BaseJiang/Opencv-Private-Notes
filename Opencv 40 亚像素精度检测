@@ -1,0 +1,100 @@
+//课程40 亚像素精度检测
+//当我们想要进行几何测量或者标定的时候势必要比目标识别需要更高的精度的特征点。而上面的goodFeaturesToTrack()只能得到整数的坐标值，
+//这时候我们就需要亚像素级的角点检测来得到实数坐标值来满足精度需求。亚像素级角点检测的位置摄像机标定，
+//跟踪并重建摄像机的轨迹或者重建被跟踪目标的三维结构时，是一个基本的测量值。下面是将角点位置精确到亚像素精度的过程：
+//一个向量与其正交的向量的点积为0，角点满足上图所示情况。其中点p附近的图像是均匀的，其梯度为0；边缘的梯度与沿边缘方向的q - p向量正交。
+//在图中两种情况下，p点梯度与q - p向量的点积均为0。
+//上图中，我们假设起始角点q在实际亚像素角点的附近。检测所有的q - p向量。若点p位于一个均匀区域，则点p的梯度为0。
+//若q - p向量的方向与边缘的方向一致，则此边缘上p点处的梯度与q - p向量正交，在这两种情况下，p点处的梯度与q - p向量的点积为0.
+//我们可以在p点周围找到很多组梯度以及相关的向量q - p，令其点集为0，然后可以通过求解方程组，方程组的解即为角点q的亚像素级精度的位置，即精确的角点位置。
+//API介绍：
+//void cornerSubPix(
+//     InputArray image, //输入图像
+//     InputOutputArray corners,//输入角点的初始坐标和为输出的精确坐标
+//     Size winSize, //搜索窗口边长的一半
+//     Size zeroZone,//搜索区域中间的死区大小的一半，(-1,-1)表示没有这样的大小。
+//     TermCriteria criteria //终止角点优化迭代的条件
+//)
+//CvTermCriteria
+//迭代算法的终止准则
+//typedef struct CvTermCriteria
+//{
+//     int    type;  /* CV_TERMCRIT_ITER 和CV_TERMCRIT_EPS二值之一，或者二者的组合 */
+//     int    max_iter; /* 最大迭代次数 */
+//     double epsilon; /* 结果的精确性 */
+//}
+//CvTermCriteria;
+///* 构造函数 */
+//inline  CvTermCriteria  cvTermCriteria(int type, int max_iter, double epsilon);
+///* 在满足max_iter和epsilon的条件下检查终止准则并将其转换使得type=CV_TERMCRIT_ITER+CV_TERMCRIT_EPS */
+//CvTermCriteria cvCheckTermCriteria(CvTermCriteria criteria,
+//     double default_eps,
+//     int default_max_iters);
+#include"pch.h"
+#include <opencv2/opencv.hpp>
+#include <iostream>
+using namespace cv;
+using namespace std;
+int max_corners = 20;
+int max_count = 50;
+Mat src, gray_src;
+const char* output_title = "SubPixel Result";
+void SubPixel_Demo(int, void*);
+int main(int argc, char** argv) {
+	src = imread("F:/PHOTO/building.jpg");
+	if (src.empty()) {
+		printf("could not load image...\n");
+		return -1;
+	}
+	imshow("input image", src);
+	cvtColor(src, gray_src, COLOR_BGR2GRAY);
+	SubPixel_Demo(0, 0);
+	createTrackbar("Corners:", output_title, &max_corners, max_count, SubPixel_Demo);
+	waitKey(0);
+	return 0;
+}
+void SubPixel_Demo(int, void*) {
+	if (max_corners < 5) {
+		max_corners = 5;
+	}
+	//提供初始角点的坐标位置和精确的坐标的位置
+	vector<Point2f> corners;
+	//角点检测可接受的最小特征值
+	double qualityLevel = 0.01;
+	//角点之间最小距离
+	double minDistance = 10;
+	//计算导数自相关矩阵时指定的领域范围
+	int blockSize = 3;
+	//权重系数
+	double k = 0.04;
+	//输入灰度图、输出角点坐标、想要检测到的角点数目、角点的质量水平、
+	//两个角点之间的最短欧式距离、mask 、窗口大小、不使用harris、权值系数。
+	goodFeaturesToTrack(gray_src, corners, max_corners, qualityLevel, minDistance, Mat(), blockSize, false, k);
+
+	cout << "number of corners: " << corners.size() << endl;
+
+	Mat resultImg = src.clone();
+
+	for (size_t t = 0; t < corners.size(); t++) {
+		circle(resultImg, corners[t], 2, Scalar(0, 0, 255), 2, 8, 0);
+		cout << "tomasi角点坐标：" << corners[t] << endl;
+	}
+	imshow(output_title, resultImg);
+
+	//寻找亚像素角点
+	Mat dst=src.clone();
+	//搜素窗口的一半尺寸
+	Size winSize = Size(5, 5);
+	//表示死区的一半尺寸
+	Size zerozone = Size(-1, -1);
+	//求角点的迭代过程的终止条件，即角点位置的确定
+	TermCriteria tc = TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 40, 0.001);
+
+	cornerSubPix(gray_src, corners, winSize, zerozone, tc);
+	for (size_t t = 0; t < corners.size(); t++) {
+		circle(dst, corners[t], 2, Scalar(0, 0, 255), 2, 8, 0);
+		cout << "亚像素角点坐标：" << corners[t] << endl;
+	}
+	imshow("亚像素角点", dst);
+	return;
+}
