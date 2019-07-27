@@ -1,0 +1,137 @@
+在图像处理领域，有一个非常重要的名词ROI。它的英文全称是Region Of Interest，对应的中文解释就是感兴趣区域。
+	感兴趣区域，就是我们从图像中选择一个图像区域，这个区域就是图像分析所关注的焦点。我们圈定这个区域，
+	那么我们要处理的图像就从大图像变为一个小图像区域了，这样以便进行进一步处理，可以大大减小处理时间。
+	定义ROI区域有两种方法：
+
+	第一种，指定矩形的坐标，并且规定好他的长宽。
+	Mat img = imread("1.jpg");
+Mat roi = img(Rect(500, 200, 100, 300));//Rect四个形参分别是：x坐标，y坐标，长，高；注意(x,y)指的是矩形的左上角点
+
+第二种，指定感兴趣的行或列的范围。
+	Mat img = imread("1.jpg");
+Mat roi = img(Range(250, 250 + 100), Range(200, 200 + 100));//Range两个形参分别是：起始行或列，起始行或列+偏移量
+简单看一下ROI区域的使用方法，下面的程序定义了ROI，并且我用绿框标记出来。
+
+
+#include<opencv2\opencv.hpp>
+#include<opencv2\highgui\highgui.hpp>
+	using namespace std;
+using namespace cv;
+int main(){
+	Mat srcImage = imread("lol0.jpg");
+	if (!srcImage.data)
+	{
+		cout << "读取原始图失败！" << endl;
+		return -1;
+	}
+
+	rectangle(srcImage, Rect(0, 0, 600, 200), Scalar(0, 255, 0),2); //将感兴趣区域框出来
+	imshow("ROI", srcImage);
+	waitKey();
+
+	return 0;
+}
+
+有时候我们不仅想把ROI标记出来，还想把ROI提取出来，成为一幅单独图片
+
+#include<opencv2\opencv.hpp>
+#include<opencv2\highgui\highgui.hpp>
+	using namespace std;
+using namespace cv;
+
+int main(){
+	//导入图像
+	Mat img1 = imread("lol0.jpg", 1);
+	Mat img2(img1.rows, img1.cols, CV_8UC3);
+
+	//设置感兴趣区域,拷贝
+	img1(Rect(500, 31, 200, 250)).copyTo(img2);
+
+	//当然也可以这样
+	//Mat roi = img1(Rect(0,0,100,100));
+	//imshow("roi",roi);
+
+	//显示
+	imshow("img1", img1);
+	imshow("img2", img2);
+	waitKey(0);
+}
+
+这样子，ROI就被提取出来了。
+
+	现在为图像加上LOGO。
+	有两种方法。
+	方法一：
+	先定义好ROI区域(也就是你要在哪里加这个LOGO)，然后进行线性叠加，使用addWeigthed函数。
+	这里有必要介绍一下线性混合操作。
+	线性混合操作是一种典型的二元（两个输入）的像素操作，它的理论公式如下：
+	我们通过在范围0到1之间改变alpha值，来对两幅图像（如上述公式中的fa和f3）进行画面迭代效果。OpenCV的相关操作如下：
+
+
+#include<opencv2\opencv.hpp>
+#include<opencv2\highgui\highgui.hpp>
+	using namespace std;
+using namespace cv;
+int main(){
+	Mat srcImage = imread("lol.jpg");
+	imshow("srcImage", srcImage);
+
+	Mat logo = imread("dota2.jpg");
+
+	//从原图中抠出矩形区域，Rect第一二参数表示矩形左上角定点的坐标，用于定位，后两个参数表示举行的宽和高
+	Mat imageROI = srcImage(Rect(28, 41, logo.cols, logo.rows));
+	imshow("ROI", imageROI);
+
+	addWeighted(imageROI, 0.2, logo, 0.8, 0.0, imageROI);
+	//dst = src1[I]*alpha+ src2[I]*beta + gamma；第一第四个参数就是各自权重，第5个参数就是公式中的偏执因子gamma。
+
+	return 0;
+
+}
+
+效果如下，可以看出，我们的logo变得模糊了，也可以认为我们logo跟原图水乳交融在一起了，我们可以不断调整上面addWeighted()的参数，来获得自己喜欢的效果。
+	方法二：
+	定义ROI区域，使用copyTo实现直接拷贝覆盖
+
+
+#include<opencv2\opencv.hpp>
+#include<opencv2\highgui\highgui.hpp>
+
+	using namespace std;
+using namespace cv;
+int main(){
+	Mat srcImage = imread("lol.jpg");
+	if (!srcImage.data)
+	{
+		cout << "读取原始图失败！" << endl;
+		return -1;
+	}
+	namedWindow("srcImage", WINDOW_NORMAL);// 注意这个宏，使用WINDOW_NORMAL可以允许用户自由伸缩窗口大小
+	imshow("srcImage", srcImage);
+
+	Mat logo = imread("dota2.jpg");
+	Mat mask = imread("dota2.jpg",0); // 加载掩模（必须是灰度图）
+	if (!logo.data)
+	{
+		cout << "读取原始logo图失败！" << endl;
+		return -1;
+	}
+
+	Mat imageROI = srcImage(Rect(28, 41, logo.cols, logo.rows));
+	//从原图中抠出矩形区域，Rect第一二参数表示矩形左上角定点的坐标，用于定位，后两个参数表示举行的宽和高
+	imshow("ROI", imageROI);
+
+	logo.copyTo(imageROI,mask);//注意两个参数，一个是ROI,一个是掩模
+	namedWindow("原图加logo", WINDOW_NORMAL);
+	imshow("原图加logo", srcImage);
+	waitKey();
+
+	return 0;
+
+}
+
+从效果看出，logo被拷贝到原图上了。
+
+
+
+
