@@ -1,0 +1,183 @@
+#include "stdafx.h"
+#include "MFC打开摄像头显示图像.h"
+#include "MFC打开摄像头显示图像Dlg.h"
+#include "afxdialogex.h"
+#include "CvvImage.h"
+#include "cv.h"
+#include "highgui.h"
+#include <iostream>
+#include <opencv2/opencv.hpp>
+#include <Windows.h>
+#include <iomanip>
+#include <fstream>
+using namespace cv;
+using namespace std;
+void TidyProposals(std::vector<cv::Rect> &proposals);
+int CalDistance(cv::Rect r1, cv::Rect r2);
+bool isIntersectingR(const cv::Rect a, const cv::Rect b);
+Rect MergeRect(cv::Rect a, cv::Rect b);
+bool isRectInRect(cv::Rect r1, cv::Rect r2);
+static int is_rect_intersect(const int x[], const int y[]);
+void DeleteFromProposals(std::vector<cv::Rect> &proposals, cv::Rect r);
+bool isPointInRectCv(int x, int y, cv::Rect rect);
+void TidyProposals(std::vector<cv::Rect> &proposals, int sizenum)
+{
+	int size, lastsize = 0;
+	size = proposals.size(); //向量(矩形框)个数
+	//直到两次处理proposals中的元素个数不变
+	while (size != lastsize)
+	{
+		auto temp = proposals;  //建立一个副本（temp也是一个集合）
+		//auto 自动根据后面的内容 推断前面的类型
+		for (auto &rect : temp)
+		{
+			//把temp赋值给rect
+			//proposals中的元素是一个个的rect矩形框
+			for (auto iter = proposals.begin(); iter != proposals.end();)
+			{
+				//新建的副本是 proposals 集合的第一个矩形框的话，迭代器加1
+				if (*iter == rect)
+					++iter;
+				//如果temp取出并赋值给变量rect 的 不是第一个矩形框，他们框之间的距离小于sizenum
+				else if (CalDistance(*iter, rect) <= sizenum)
+				{
+					//则求两个矩形的外接矩形
+					*iter = MergeRect(*iter, rect);
+
+					if (!isRectInRect(*iter, rect))
+						DeleteFromProposals(proposals, rect);//并删除proposals中与rect相等的元素
+					break;
+				}
+				else
+					++iter;
+			}
+		}
+		lastsize = size;
+		size = proposals.size();
+	}
+
+	return;
+}
+/******************************************
+brief:
+计算两个矩形之间的距离
+若两个矩形相交，则返回0
+先计算x方向最小距离dx
+再计算y方向最小距离dy
+d = sqrt（dx*dx + dy*dy）
+******************************************/
+int CalDistance(cv::Rect r1, cv::Rect r2)
+{
+	//如果两个矩形框相交，返回0
+	if (isIntersectingR(r1, r2))
+		return 0;
+	//先计算外接矩形
+	Rect r3 = MergeRect(r1, r2);
+	int dx = 0, dy = 0;
+	//纵向不重叠,计算纵向最小距离
+	if (r3.height >= r1.height + r2.height)
+	{
+		dy = min(min(abs(r1.y - r2.y), abs(r1.y - r2.y - r2.height)),min(abs(r1.y + r1.height - r2.y), abs(r1.y + r1.height - r2.y - r2.height)));
+	}
+	//横向不重叠，计算横向最小距离
+	if (r3.width >= r1.width + r2.width)
+	{
+		dx = min(min(abs(r1.x - r2.x), abs(r1.x - r2.x - r2.width)),min(abs(r1.x + r1.width - r2.x), abs(r1.x + r1.width - r2.x - r2.width)));
+	}
+	//计算综合最小距离
+	int d = sqrt(dy*dy + dx * dx);
+	return d;
+}
+//两个矩形是否有交集
+bool isIntersectingR(const cv::Rect a, const cv::Rect b)
+{
+	//判断一个矩形（四个顶点）中是否有在另一个矩形b内
+	//这是矩形a 的四个顶点
+	int x[4], y[4];
+	x[0] = a.x; y[0] = a.y;
+	x[1] = a.x; y[1] = a.y + a.height;
+	x[2] = a.x + a.width; y[2] = a.y;
+	x[3] = a.x + a.width; y[3] = a.y + a.height;
+	for (int i = 0; i<4; i++)
+	{
+		//循环判断点a是否在矩形框b内
+		if (true == isPointInRectCv(x[i], y[i], b))
+			return true;
+	}
+	//判断一个矩形b（四个顶点）中是否有在另一个矩形a内
+	//这是矩形b 的四个顶点
+	int x1[4], y1[4];
+	x1[0] = b.x; y1[0] = b.y;
+	x1[1] = b.x; y1[1] = b.y + b.height;
+	x1[2] = b.x + b.width; y1[2] = b.y;
+	x1[3] = b.x + b.width; y1[3] = b.y + b.height;
+	for (int i = 0; i<4; i++)
+	{
+		//循环判断点b是否在矩形框a内
+		if (true == isPointInRectCv(x1[i], y1[i], a))
+			return true;
+	}
+	return false;
+}
+//求两个矩形的外接矩形
+cv::Rect MergeRect(cv::Rect a, cv::Rect b)
+{
+	cv::Rect c;
+	c.x = min(a.x, b.x);
+	c.y = min(a.y, b.y);
+	int t = max(a.x + a.width, b.x + b.width);
+	c.width = t - c.x;
+	t = max(a.y + a.height, b.y + b.height);
+	c.height = t - c.y;
+	//c.area() = a.area() + b.area();  //面积
+	//printf("========> c.area() = %d\n", c.area());
+	return c;
+}
+//区域是否在另一个区域内部
+//判断矩形框是否在另一个矩形框内部
+bool isRectInRect(cv::Rect r1, cv::Rect r2)
+{
+	//判断矩形框的四个顶点是否同时在另一个矩形框的内部
+	if (isPointInRectCv(r1.x, r1.y, r2)
+		&& isPointInRectCv(r1.x + r1.width, r1.y + r1.height, r2)
+		&& isPointInRectCv(r1.x, r1.y + r1.height, r2)
+		&& isPointInRectCv(r1.x + r1.width, r1.y, r2))
+	{
+		return true;
+	}
+	else
+		return false;
+}
+//判断两个矩形框是否相交
+static int is_rect_intersect(const int x[], const int y[])
+{
+	int zx = abs(x[0] + x[1] - x[2] - x[3]);
+	int x_x = abs(x[0] - x[1]) + abs(x[2] - x[3]);
+	int zy = abs(y[0] + y[1] - y[2] - y[3]);
+	int y_y = abs(y[0] - y[1]) + abs(y[2] - y[3]);
+	if (zx <= x_x && zy <= y_y)
+		return 1;   //相交
+	else
+		return 0;   //不相交
+}
+//删除指定大小的rect
+void DeleteFromProposals(std::vector<cv::Rect> &proposals, cv::Rect r)
+{
+	for (auto iter = proposals.begin(); iter != proposals.end();)
+	{
+		if (*iter == r)
+			iter = proposals.erase(iter);
+		else
+			++iter;
+	}
+	return;
+}
+//点是否在区域内部
+bool isPointInRectCv(int x, int y, cv::Rect rect)
+{
+	if (x >= rect.x && x <= (rect.x + rect.width)
+		&& y >= rect.y && y <= (rect.y + rect.height))
+		return true;
+	else
+		return false;
+}
