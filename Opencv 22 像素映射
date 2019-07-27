@@ -1,0 +1,84 @@
+//简单点说就是把输入图像中各个像素按照一定的规则映射到另外一张图像的对应位置上去，形成一张新的图像。
+//Remap(       InputArray src,
+// 输入图像       OutputArray dst,
+// 输出图像       InputArray  map1,
+// x 映射表 CV_32FC1/CV_32FC2       InputArray map2,
+// y 映射表       int interpolation,
+// 选择的插值方法，常见线性插值，可选择立方等       int borderMode,
+// BORDER_CONSTANT       const Scalar borderValue
+// color)
+////首先我们要先考虑，我们要做的情况有如下四种：缩小（行与列均为原来的1 / 2），左右翻转，上下翻转，中心旋转。下面的图表示的就是四种变换模式：
+//最简单的是翻转了，行不变，第一列跟最后一列转换，第二列跟倒数第二列转换……这样就实现了左右翻转。
+//同理，列不变，行转换，实现上下翻转。
+//如果上下左右都翻转，那就是旋转180°，也就是中心旋转啦。
+//还有一个就是图像缩小，图像缩小就是将长跟宽变换为原来的1 / 2。所以只在图像的1 / 4处到3 / 4处有新图像。/
+//将图像范围控制在0原图像的0.25 - 0.75之间，其他的全部为0；设置图像的x和y方向的映射。对于x方向，是列的映射。
+//图像的每个像素点，减去原图像的1 / 4，再×2，就表示图像缩小1 / 2.             
+//图像的行跟列为为原来的1/2。
+// if (col > (img.cols * 0.25) && col<(img.cols * 0.75) && row>(img.rows * 0.25) && row < (img.rows * 0.75)) {
+//    map_x.at<float>(row, col) = 2 * (col - (img.cols * 0.25));
+//    map_y.at<float>(row, col) = 2 * (row - (img.rows * 0.25) - 0.25);
+//    }
+//为左右翻转（列变换，行不变）
+//   map_x.at<float>(row, col) = (img.cols - col - 1);
+//    map_y.at<float>(row, col) = row;//为上下翻转（行变换，列不变）
+//   map_x.at<float>(row, col) = col;
+//   map_y.at<float>(row, col) = (img.rows - row - 1);
+//为中心旋转
+//   map_x.at<float>(row, col) = (img.cols - col - 1);
+//   map_y.at<float>(row, col) = (img.rows - row - 1);
+//            
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <math.h>
+using namespace cv;
+Mat src, dst1,dst2,dst3,dst4, map_x1, map_y1, map_x2, map_y2, map_x3,map_y3,map_x4,map_y4;
+int main(int argc, char** argv) {     
+	src = imread("F://PHOTO/cat.jpg");   
+	if (!src.data) {        
+		printf("could not load image...\n");       
+		return -1;  
+	}    
+	imshow("input_img", src);     
+	map_x1.create(src.size(), CV_32FC1);     
+	map_y1.create(src.size(), CV_32FC1);   
+	map_x2.create(src.size(), CV_32FC1);    
+	map_y2.create(src.size(), CV_32FC1);   
+	map_x3.create(src.size(), CV_32FC1);    
+	map_y3.create(src.size(), CV_32FC1);    
+	map_x4.create(src.size(), CV_32FC1);   
+	map_y4.create(src.size(), CV_32FC1);  
+	for (int row = 0; row < src.rows; row++) {  
+		for (int col = 0; col < src.cols; col++) {    
+			if(col >= (src.cols * 0.25) && col <= (src.cols*0.75) && row >= (src.rows*0.25) && row<=(src.rows*0.75)) {         
+				//图像缩小为一半         
+				map_x1.at<float>(row, col) = 2 * (col - (src.cols * 0.25));              
+				map_y1.at<float>(row, col) = 2 * (row - (src.rows * 0.25));              
+			}          
+			else {          
+				map_x1.at<float>(row, col) = 0;              
+				map_y1.at<float>(row, col) = 0;         
+			}                                      
+			//左右翻转             
+
+			map_x2.at<float>(row, col) = src.cols - col - 1;        
+			map_y2.at<float>(row, col) = row;                  
+			//上下翻转         
+			map_x3.at<float>(row, col) = col;         
+			map_y3.at<float>(row, col) = src.rows - row - 1;            
+			//旋转        
+			map_x4.at<float>(row, col) = src.cols - col - 1;         
+			map_y4.at<float>(row, col) = src.rows - row - 1;        
+		}  
+	}    
+	remap(src, dst1, map_x1, map_y1, INTER_LINEAR, BORDER_CONSTANT, Scalar(0, 255, 255));   
+	imshow("suoxiaoyiban", dst1);   
+	remap(src, dst2, map_x2, map_y2, INTER_LINEAR, BORDER_CONSTANT, Scalar(0, 255, 255));   
+	imshow("zuoyoufanzhuan", dst2);    
+	remap(src, dst3, map_x3, map_y3, INTER_LINEAR, BORDER_CONSTANT, Scalar(0, 255, 255));    
+	imshow("shangxiafanzhuan", dst3);   
+	remap(src, dst4, map_x4, map_y4, INTER_LINEAR, BORDER_CONSTANT, Scalar(0, 255, 255));   
+	imshow("xuanzhuan", dst4);    
+	waitKey(0);    
+	return 0;
+}
