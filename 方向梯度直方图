@@ -1,0 +1,90 @@
+    方向梯度直方图（Histogram of Oriented Gradient, HOG）特征是一种在计算机视觉和图像处理中用来进行物体检测的特征描述子。
+	它通过计算和统计图像局部区域的梯度方向直方图来构成特征。Hog特征结合SVM分类器已经被广泛应用于图像识别中，
+	尤其在行人检测中获得了极大的成功。需要提醒的是，HOG+SVM进行行人检测的方法是法国研究人员Dalal在2005的CVPR上提出的，
+	而如今虽然有很多行人检测算法不断提出，但基本都是以HOG+SVM的思路为主。
+	（1）主要思想：       在一副图像中，局部目标的表象和形状（appearance and shape）能够被梯度或边缘的方向密度分布很好地描述。
+	（本质：梯度的统计信息，而梯度主要存在于边缘的地方）。
+	（2）具体的实现方法是：       
+	首先将图像分成小的连通区域，我们把它叫细胞单元。然后采集细胞单元中各像素点的梯度的或边缘的方向直方图。
+	最后把这些直方图组合起来就可以构成特征描述器。
+	（3）提高性能：       
+	把这些局部直方图在图像的更大的范围内（我们把它叫区间或block）进行对比度归一化（contrast-normalized），
+	所采用的方法是：先计算各直方图在这个区间（block）中的密度，然后根据这个密度对区间中的各个细胞单元做归一化。
+	通过这个归一化后，能对光照变化和阴影获得更好的效果。（
+	4）优点：       与其他的特征描述方法相比，HOG有很多优点。首先，由于HOG是在图像的局部方格单元上操作，
+	所以它对图像几何的和光学的形变都能保持很好的不变性，这两种形变只会出现在更大的空间领域上。
+	其次，在粗的空域抽样、精细的方向抽样以及较强的局部光学归一化等条件下，只要行人大体上能够保持直立的姿势，
+	可以容许行人有一些细微的肢体动作，这些细微的动作可以被忽略而不影响检测效果。因此HOG特征是特别适合于做图像中的人体检测的。 
+	2、HOG特征提取算法的实现过程：大概过程：HOG特征提取方法就是将一个image（你要检测的目标或者扫描窗口）：
+	1）灰度化（将图像看做一个x,y,z（灰度）的三维图像）；
+	2）采用Gamma校正法对输入图像进行颜色空间的标准化（归一化）；
+	目的是调节图像的对比度，降低图像局部的阴影和光照变化所造成的影响，同时可以抑制噪音的干扰；
+	3）计算图像每个像素的梯度（包括大小和方向）；主要是为了捕获轮廓信息，同时进一步弱化光照的干扰。
+	4）将图像划分成小cells（例如6*6像素/cell）；5）统计每个cell的梯度直方图（不同梯度的个数），即可形成每个cell的descriptor；
+	6）将每几个cell组成一个block（例如3*3个cell/block），一个block内所有cell的特征descriptor串联起来便得到该block的HOG特征descriptor。
+	7）将图像image内的所有block的HOG特征descriptor串联起来就可以得到该image（你要检测的目标）的HOG特征descriptor了。
+	这个就是最终的可供分类使用的特征向量了。
+	HOGDescriptor(Size win_size=Size(64, 128), Size block_size=Size(16, 16), Sizeblock_stride=Size(8, 8), Size cell_size=Size(8, 8),
+	int nbins=9, double win_sigma=DEFAULT_WIN_SIGMA, doublethreshold_L2hys=0.2, bool gamma_correction=true, int nlevels=DEFAULT_NLEVELS)
+	* win_size – 检测窗大小。需要和块的大小、步长匹配。
+	* block_size – 块的大小。需要和细胞大小匹配。目前只支持(16,16)的大小。
+	* block_stride – 块的步长，必须是细胞大小的整数倍。
+	* cell_size – 细胞大小。目前只支持(8, 8)的大小。
+	* nbins – 投票箱的个数。目前只支持每个细胞9个投票箱。
+	* win_sigma – 高斯平滑窗口参数。
+	* threshold_L2hys – L2-Hys归一化收缩率。
+	* gamma_correction – 伽马校正预处理标志，需要或不需要。
+	* nlevels – 检测窗口的最大数目。
+
+	返回分类所需的系数的数目。HOGDescriptor::getDescriptorSize() const返回块直方图的大小。HOGDescriptor::getBlockHistogramSize设置线性SVM分类器的系数。
+	HOGDescriptor::setSVMDetector返回人的分类训练检测（默认的窗口大小）的默认系数。
+	HOGDescriptor::getDefaultPeopleDetectorHOGDescriptor::getPeopleDetector48x96返回人的分类训练检测（48*96窗口大小）的系数。
+	C++: static vector<float> gpu::HOGDescriptor::getPeopleDetector48x96()HOGDescriptor::getPeopleDetector64x128返回人的分类训练检测（64*128窗口大小）的系数。
+	static vector<float> gpu::HOGDescriptor::getPeopleDetector64x128()HOGDescriptor::detectMultiScale在多尺度窗口中执行对象检测。
+	C++: void gpu::HOGDescriptor::detectMultiScale(const GpuMat& img, vector<Rect>& found_locations, double hit_threshold=0,
+	Size win_stride=Size(), Size padding=Size(), double scale0=1.05, int group_threshold=2)
+	* img – 源图像。只支持CV_8UC1和CV_8UC4数据类型。
+	* found_locations – 检测出的物体的边缘。
+	* hit_threshold – 特征向量和SVM划分超平面的阀值距离。通常它为0，并应由检测器系数决定。但是，当系数被省略时，可以手动指定它。
+	* win_stride – 窗口步长，必须是块步长的整数倍。
+	* padding – 模拟参数，使得CUP能兼容。目前必须是(0,0)。
+	* scale0 – 检测窗口增长参数。
+	* group_threshold – 调节相似性系数的阈值。检测到时，某些对象可以由许多矩形覆盖。 0表示不进行分组。
+
+#include <opencv2/opencv.hpp>
+#include <opencv2/objdetect.hpp>
+	using namespace std;using namespace cv;
+int main(){
+	Mat src, dst;
+	src = imread("E:/image/image/passerby.jpg",1);
+	if (src.empty())    {
+		printf("can not load the image...\n");
+		return -1;
+	}
+	dst = src.clone();
+	vector<Rect> findrects, findrect;
+	HOGDescriptor HOG;
+	//SVM分类器   返回人的分类训练检测（默认的窗口大小）的默认系数。
+	HOG.setSVMDetector(HOGDescriptor::getDefaultPeopleDetector());
+	//多尺度检测
+	HOG.detectMultiScale(src, findrects, 0, Size(4,4), Size(0,0), 1.05, 2);
+	//若rects有嵌套,则取最外面的矩形存入rect
+	for(int i=0; i < findrects.size(); i++)    {
+		Rect rect = findrects[i];
+		int j=0;
+		for(; j < findrects.size(); j++)
+			if(j != i && (rect & findrects[j]) == rect)
+				break;
+		if( j == findrects.size())
+			findrect.push_back(rect);
+	}    //框选出检测结果
+	for(int i=0; i<findrect.size(); i++)    {
+		RNG rng(i);
+		Scalar color = Scalar(rng.uniform(0,255), rng.uniform(0,255), rng.uniform(0,255));
+		rectangle(dst, findrect[i].tl(), findrect[i].br(), color, 2);
+	}
+	imshow("src",src);
+	imshow("dst",dst);
+	waitKey();
+	return 0;
+} 
