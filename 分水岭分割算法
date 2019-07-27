@@ -1,0 +1,80 @@
+// watershedDemo.cpp : 定义控制台应用程序的入口点。
+//分水岭图像分割算法
+#include "stdafx.h"
+#include<opencv2/opencv.hpp>
+#include<opencv2/highgui/highgui.hpp>
+#include<opencv2/imgproc/imgproc.hpp>
+#include<iostream>
+using namespace cv;
+using namespace std;
+Vec3b RandomColor(int value );//随机生成颜色函数
+int _tmain(int argc, _TCHAR* argv[])
+{
+       //载入彩色图像
+       Mat image=imread("F:\\PHOTO\\basketball.jpg");
+       imshow("加载的原图像",image);
+       // 灰度、滤波、Canny边缘检测
+       Mat grayImg,gaussianImg,cannyImg;
+       cvtColor(image,grayImg,CV_BGR2GRAY);
+       imshow("灰度图",grayImg);
+       //高斯滤波
+       GaussianBlur(grayImg,gaussianImg,Size(5,5),11,11,4);
+       imshow("高斯滤波图",gaussianImg);
+       //canny边缘检测
+       Canny(gaussianImg,cannyImg,50,150,3,true);
+       imshow("边缘检测图",cannyImg);
+       //查找轮廓
+       vector<vector<Point>> contours;
+       vector<Vec4i>hierarchy;
+       findContours(cannyImg,contours,hierarchy,RETR_TREE,CHAIN_APPROX_SIMPLE,Point(0,0));
+       Mat contoursImg=Mat::zeros(image.size(),CV_8UC1);
+       //分水岭的第二个参数
+       Mat marks(image.size(),CV_32S);
+       marks=Scalar::all(0);
+       int index =0;
+       int compCount=0;
+       // hierarchy向量内每一个元素的4个int型变量——hierarchy[i][0] ~hierarchy[i][3]，分别表示第 i个轮廓的后一个轮廓、前一个轮廓、父轮廓、内嵌轮廓的索引编号。
+       //如果当前轮廓没有对应的后一个轮廓、前一个轮廓、父轮廓或内嵌轮廓的话，则hierarchy[i][0] ~hierarchy[i][3]的相应位被设置为默认值-1。
+       for(;index>=0;index=hierarchy[index][0],compCount++){
+              //对marks进行标记，对不同区域的轮廓进行编号，相当于设置注水点，有多少轮廓 设置多少注水点
+              drawContours(marks,contours,index,Scalar::all(compCount+1),1,8,hierarchy);
+              //画轮廓
+              drawContours(contoursImg,contours,index,Scalar::all(255),1,8,hierarchy);
+       }
+       //显示marks是什么东西
+       Mat marksShows;
+       //convertScaleAbs 使用线性变换转换输入数组元素成8位无符号整型。
+       convertScaleAbs(marks,marksShows);
+       imshow("marksShows",marksShows);
+       imshow("轮廓",contoursImg);
+       //分水岭操作
+       watershed(image,marks);
+       //查看分水岭后的矩阵marks是什么
+       Mat afterWatershed;
+       convertScaleAbs(marks,afterWatershed);
+       imshow("After watershed marks",afterWatershed);
+//对每个区域进行颜色填充
+       Mat PerspectiveImage=Mat::zeros(image.size(),CV_8UC3);
+       for(int i=0;i<marks.rows;i++){
+              for(int j=0;j<marks.cols;j++){
+                     int index=marks.at<int>(i,j);
+                     if(marks.at<int>(i,j)==-1){
+                           PerspectiveImage.at<Vec3b>(i,j)=Vec3b(255,255,255);
+              }
+                 else{
+                     PerspectiveImage.at<Vec3b>(i,j)=RandomColor(index);
+                 }   
+              }
+       }
+       imshow("after colordill image",PerspectiveImage);
+       waitKey(0);
+       return 0;
+}
+Vec3b RandomColor(int value ){
+       //生成0-255随机数
+       RNG rng;
+       int aa=rng.uniform(0,value);
+       int bb=rng.uniform(0,value);
+       int cc=rng.uniform(0,value);
+       return Vec3b(aa,bb,cc);
+}
