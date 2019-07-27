@@ -1,0 +1,108 @@
+//课程17 sobel算子
+//是离散微分算子（discrete differentiation operator），用来计算图像灰度的近似梯度，Soble算子功能集合高斯平滑和微分求导
+//又被称为一阶微分算子，求导算子，在水平和垂直两个方向上求导，得到图像X方法与Y方向梯度图像
+//前面我们已经介绍了图像的卷积操作，而一个最重要的卷积运算就是对导数的计算，假设我们需要检测图像中的边缘部分。
+//图像的高频分量一般出现在像素值显著改变的地方，容易勾画出图像的轮廓。高等数学中我们知道函数变化剧烈其所对应的导数值越大(极大值)，
+//所以表示图像像素值改变最大的一个方法就是求出图像的导数。//其梯度值剧烈的改变预示着图像中内容发生显著变化，灰度值的“跃升”表示边缘的存在。
+//通过对函数进行一阶微分我们可以更加清晰的看到边缘“跃升”的存在，即在其一阶微分中最大值代表其所对应的像素值变化剧烈。
+//1.1在两个方向求导//a 水平变化：将I与一个奇数大小的内核Gx进行卷积，比如当内核大小为3时，Gx计算结果为：
+//G(x)=[-1,0,1
+//    -2,0,2    *I
+//    -1,0,1]
+////b 垂直变化：将I与一个奇数大小的内核Gy进行卷积，比如当内核大小为3时，Gy的计算结果为：
+////G(y)=[-1,-2,-1
+//     0,0,0      *I
+//     1,0,1]
+////1.2 在图像的每一点结合以上两个结果求出近似梯度：
+//G=根号下 G(x)平方+G(y)平方
+//为简单计算
+//G = G(x)绝对值+ G(y)绝对值
+////sobel函数，其定义如下：
+//Sobel(InputArray  src,OutputArray  dst,int  ddepth,int  dx,int  dy,int  ksize = 3,
+// double  scale = 1,double  delta = 0,int  borderType = BORDER_DEFAULT)
+// 参数1：InputArray src : 输入图像；参数2：OutputArray dst : 输出图像；
+//参数3：int ddepth : 输出图像深度（当输入图像为8 - bit时将会导致截断）；参数4：int dx : x方向上的差分阶数；
+//参数5：int dy : y方向上的差分阶数；参数6： int ksize = 3 : Sobel函数核尺寸，只能是1、3、5、7中的一个，默认值是3。
+//参数7：double scale = 1 : 计算导数值可选的缩放因子，默认值是1表示没有缩放。参数8：int borderType = BORDER_DEFAULT : 边界模式
+//     注意// 当内核大小为3时，Sobel内核可能产生比较明显的误差，毕竟Sobel算子只是求取了导数的近似值，为了解决这一问题，opencv提供了Scharr函数
+//（对边缘进一步加强了，不怕干扰），但该函数仅作用于大小为3的内核，该函数的运算与Sobel函数一样快，但结果更加精确，其内核如下：
+//     G(x) = [-3, 0, 3
+//            - 10, 0, 10
+//            - 3, 0, 3]
+////     G(y) = [-3, -10, -3
+//             0, 0, 0
+//             3, 10, 3]
+//     cv::Scharr(
+//            InputArray Src
+// 输入图像
+//            OutputArray dst
+// 输出图像，大小与输入图像一致
+//            int depth 
+// 输出图像深度.
+//            Int dx.  
+// X方向，几阶导数
+//            int dy 
+// Y方向，几阶导数.
+//            double scale = 1
+//            double delta = 0
+//            int borderType = BORDER_DEFAULT)
+//步骤：先 高斯模糊平滑-再转灰度图-再求梯度X和梯度Y图像-两幅图融合X\Y
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <math.h>
+using namespace cv;
+int main(int argc, char** argv) {
+	Mat src, dst, dst1;    
+	src = imread("F:/PHOTO/dog.jpg");    
+	if (!src.data) {       
+		printf("could not load image...\n");    
+		return -1;      
+	}      
+	namedWindow("input_img", CV_WINDOW_AUTOSIZE);   
+	imshow("input_img", src);           
+	//第一步先高斯模糊去噪     
+	GaussianBlur(src, dst, Size(3, 3), 0, 0);     
+	//再转为灰度图像    
+	cvtColor(dst, dst1, CV_BGR2GRAY);     
+	namedWindow("gray_img", CV_WINDOW_AUTOSIZE);     
+	imshow("gray_img", dst1);            
+	//再求梯度      
+	Mat xgard, ygard;    
+	//求X方向的梯度     
+	//Sobel(dst1, xgard, CV_16S, 1, 0, 3);      
+	//求Y方向的梯度   
+	//Sobel(dst1, ygard, CV_16S, 0, 1, 3);              
+	//第二种精度更的求梯度函数Scharr    
+	//求X方向的梯度      
+	Scharr(dst1, xgard, CV_16S, 1, 0);     
+	//求Y方向的梯度      
+	Scharr(dst1, ygard, CV_16S, 0, 1);     
+	//使用线性变换转换输入数组元素成8位无符号整型。    
+	convertScaleAbs(xgard, xgard);    
+	convertScaleAbs(ygard, ygard);     
+	namedWindow("xgard_img", CV_WINDOW_AUTOSIZE);    
+	imshow("xgard_img", xgard);      
+	namedWindow("ygard_img", CV_WINDOW_AUTOSIZE);   
+	imshow("ygard_img", ygard);     
+	//将两个方向上的梯度图像融合     
+	Mat xygard = Mat(xgard.size(), xgard.type());      
+	//addWeighted是简单的融合     
+	//addWeighted(xgard,0.5,ygard,0.5,0,xygard);      
+	//namedWindow("xygard_img", CV_WINDOW_AUTOSIZE);     
+	//imshow("xygard_img", xygard);             
+	//下面用个各像素点融合     
+	int width = xgard.cols;     
+	int height = ygard.rows;  
+	for (int row = 0; row < height; row++) {      
+		for (int col = 0; col < width; col++) {       
+			int xg = xgard.at<uchar>(row, col);              
+			int yg = ygard.at<uchar>(row, col);          
+			int xy = xg + yg;           
+			xygard.at<uchar>(row, col) = saturate_cast<uchar>(xy);    
+		}     
+	}  
+	namedWindow("xygard_img", CV_WINDOW_AUTOSIZE);   
+	imshow("xygard_img", xygard);    
+	waitKey(0);      
+	return 0;
+}
