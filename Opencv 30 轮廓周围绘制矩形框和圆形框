@@ -1,0 +1,94 @@
+//课程30 轮廓周围绘制矩形框和圆形框
+//使用矩形、最小圆包围图像
+//首先介绍一个逼近多边形的函数approxPolyDP()
+//函数作用是用指定精度逼近多边形曲线
+//void cv::approxPolyDP(InputArray  curve,       输入的二维点集，可以是vector类型或Mat类型
+//     OutputArray         approxCurve,   多边形逼近的结果，其类型与输入的点集类型一致
+//     double             epsilon,     逼近的精度，为原始曲线和逼近曲线间的最大值
+//     bool              closed       如果为true，逼近的曲线为封闭曲线，如果为false则逼近曲线不封闭)
+//     1.使用矩形
+//     使用boundingRect()函数计算包围轮廓的矩形框
+//        cv::boundingRect(InputArray points)得到轮廓周围最小矩形  
+//        返回值，Rect，返回值为最小外接矩形的Rect，即左上点与矩形的宽度和高度；
+//     cv::minAreaRect (InputArray points)得到一个旋转的矩形，返回旋转矩形
+//     minEnclosingCircle()利用迭代算法，对给定的二维点集寻找计算可包围点集的最小圆形，
+//     void cv::minEnclosingCircle(InputArray  points,    输入的二维点集，数据类型为vector<>或Mat类型
+//            Point2f & center,                绘制圆的圆心坐标
+//            float& radius                   圆的半径
+//     )
+//     cv::fitEllipse(InputArray  points)得到最小椭圆
+#include<opencv2/opencv.hpp>
+#include<iostream>
+#include<math.h>
+using namespace cv;
+using namespace std;
+Mat src, gray, dst1, dst2;
+int threshold_value = 170;
+int threshold_max = 255;
+RNG rng(12345);
+//声明回调函数
+void Callback(int, void*);
+int main(int argc, char** argv) {
+	src = imread("F:/PHOTO/coins.jpg");
+	if (!src.data) {
+		printf("can not load the picyure.../n");
+		return -1;
+	}       
+	//转灰度
+	cvtColor(src,gray,CV_BGR2GRAY);
+	//模糊去噪
+	blur(gray,dst1,Size(3,3),Point(-1,-1),BORDER_DEFAULT);
+	//图像二值化检测边缘，得出二值化图
+	threshold(dst1,dst2,threshold_value,threshold_max,THRESH_BINARY);
+	imshow("input",src);
+	imshow("grayimg", gray);
+	Callback(0,0);
+	createTrackbar("mytrackbar1","轮廓",&threshold_value,threshold_max,Callback);
+	createTrackbar("mytrackbar2","矩形", &threshold_value, threshold_max, Callback);
+	createTrackbar("mytrackbar3","最小圆", &threshold_value, threshold_max, Callback);
+	waitKey(0);
+	return 0;
+}void Callback(int, void*) {
+		//先找出、画出轮廓
+	vector<vector<Point>> contours;
+	vector<Vec4i> hierachy;
+	//寻找图像轮廓
+	findContours(dst2,contours,hierachy,RETR_TREE,CHAIN_APPROX_SIMPLE,Point(0,0));
+	//使用多边形逼近检测到的图像轮廓来寻找包围轮廓的矩形和最小圆
+	//contours 是轮廓对象
+	vector<vector<Point>> contours_poly(contours.size());
+	vector<Rect>boundRect(contours.size());
+	vector<Point2f>center(contours.size());
+	vector<float>radius(contours.size());
+	for (int i = 0; i < contours.size(); i++) {
+		//void cv::approxPolyDP(InputArray  curve,     输入的二维点集，可以是vector类型或Mat类型        
+		//OutputArray     approxCurve,     多边形逼近的结果，其类型与输入的点集类型一致        
+		//double  epsilon,                逼近的精度，为原始曲线和逼近曲线间的最大值        
+		//bool    closed                如果为true，逼近的曲线为封闭曲线，如果为false则逼近曲线不封闭        
+		//)      
+		//输入各轮廓对象、输出多边形逼近的结果，类型与输入的轮廓对象类似
+		approxPolyDP(contours[i], contours_poly[i], 3, true);
+		//boundingRect(InputArray points)
+		//读入的参数必须是vector或者Mat点集,得到轮廓周围最小矩形左上交点坐标和右下角点坐标
+	    boundRect[i]=boundingRect(Mat(contours_poly[i]));
+		//minEnclosingCircle(InputArray  points,
+		//  输入的二维点集，数据类型为vector<>或Mat类型
+		minEnclosingCircle(Mat(contours_poly[i]),center[i],radius[i]);
+	}      
+	//绘制检测的图像轮廓、矩形、最小圆包围
+	Mat dst3 = Mat::zeros(dst2.size(), CV_8UC3);
+	Mat dst4 = Mat::zeros(dst2.size(), CV_8UC3);
+	Mat dst5 = Mat::zeros(dst2.size(), CV_8UC3);
+	for (int k = 0; k < contours.size(); k++) {
+		Scalar color = Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
+		//画轮廓
+		drawContours(dst5, contours, k, color, 3, 8, hierachy, 0, Point(0, 0));
+		//画矩形
+		rectangle(dst3,boundRect[k],color,2,8,0);
+		//画最小圆
+		circle(dst4,center[k],radius[k],color,2,8,0);
+	}
+	imshow("轮廓", dst5);
+	imshow("矩形", dst3);
+	imshow("最小圆", dst4);
+}
