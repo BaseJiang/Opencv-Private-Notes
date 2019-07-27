@@ -1,0 +1,82 @@
+//霍夫圆变换的基本原理和霍夫线变换类似，只是点对应的二维极径极角空间被三维的圆心点x, y还有半径r空间取代。
+//对直线来说，一条直线能由参数极径极角(r, θ)，而对圆来说，我们需要三个参数来表示一个圆，
+//对应一条三维空间的曲线。C : (Xcenter, Ycenter, r)这里的(Xcenter, Ycenter)表示圆心的为之而r表示半径
+//与二维的霍夫线变换同样的道理，对于多个边缘点越多这些点对应的三维空间曲线相交于一点那么他们经过共同圆的点就越多，
+//类似的我们也就可以用同样的阈值的方法来判断一个圆是否被检测到，这就是标准霍夫圆变换的原理，
+//但也正是在三维空间计算量大大增加的原因，标准霍夫圆变化很难被应用到实际中。
+////因为霍夫圆检测对噪声比较敏感，所以首先要对图像做中值滤波。//基于效率考虑，Opencv中实现的霍夫变换圆检测是基于图像梯度的实现，分为两步：
+//1. 检测边缘，发现可能的圆心
+//2. 基于第一步的基础上从候选圆心开始计算最佳半径大小
+//对运算效率的考虑，opencv实现的是一个比标准霍夫圆变换更为灵活的检测方法：霍夫梯度法，也叫2 - 1霍夫变换(21HT)，
+//它的原理依据是圆心一定在圆上的每个点的模向量上，这些圆上点模向量的焦点就是圆心，霍夫梯度法的第一步就是找到这些圆心，
+//这样三维的累加平面就又转化为二维累加平面。第二步根据所有候选中心的边缘非0像素对其的支持程度来确定半径。
+//opencv中提供了HoughCircles()函数来实现霍夫圆变换。其函数原型如下：
+//     void cv::HoughCircles(InputArray image,
+//            OutputArray    circles,
+//            int         method,
+//            double      dp,
+//            double      minDist,
+//            double      param1 = 100,
+//            double      param2 = 100,
+//            int         minRadius = 0,
+//            int         maxRadius = 0
+//     )
+//     
+//参数解释
+//image: 输入图像为8位单通道灰度图
+//circles : 检测到圆的输出矢量，每个矢量都是三个浮点元素构成(x, y, radius)
+//method : 检测方法，目前只有HOUGH_GRADIENT(霍夫梯度)一种方法可以使用。
+//dp : 用来检测圆心的累加器图像的分辨率与输入图像之比的倒数，且此参数允许创建一个比输入图像分辨率低的累加器。
+//例如，如果dp = 1，累加器和输入图像具有相同的分辨率，如果dp = 2累加器便有输入图像一半那么大的宽度和高度。
+//minDist : 霍夫检测到的圆的圆心之间的最小距离，即让算法能明显区分的两个不同圆之间的最小距离。这个参数如果太小的话，
+//多个相邻的圆可能被错误的检测成了一个重合的圆。这个参数设置太大，某些圆就不能被检测出来了。也就是超过这个距离就是两个圆，否则是一个圆。
+//param1 : 指定检测方法的第一个参数，当前可用方法是HOUGH_GRADIENT, 它表示传递给Canny边缘检测算子的高阈值(低阈值是高阈值的一半)，有默认值100
+//param2 : 指定检测方法的第二个参数，对于HOUGH_GRADIENT方法，它表示在检测阶段圆心的累加器阈值。它越小就越可以检测到更多根本不存在的圆，
+//而它越大的话能通过检测的圆就更加接近完美的圆形了。有默认值100
+//minRadius : 圆的最小半径
+//maxRadius : 圆的最大半径
+#include<opencv2/opencv.hpp>
+#include<iostream>
+#include<math.h>
+using namespace cv;
+using namespace std;
+int main(int argc, char** argv) {    
+	Mat src, gray, dst1,dst2;    
+	src = imread("F:/PHOTO/football.jpg");   
+	if (!src.data) {         
+		printf("could not load image.../n"); 
+	}    
+	imshow("input_img", src);    
+	//先中值滤波    
+	medianBlur(src, dst1, 3);    
+	imshow("median_img", dst1);    
+	//转灰度    
+	cvtColor(dst1,gray,CV_BGR2GRAY);     
+	imshow("gray_img", gray);     
+	//霍夫圆检测     
+	//存放3参数的集合    
+	vector<Vec3f> pcircles;      
+	//image: 输入图像为8位单通道灰度图      
+	//circles :输出浮点元素构成(x, y, radius) 
+	//method : 检测方法，目前只有HOUGH_GRADIENT(霍夫梯度)一种方法可以使用。    
+	//dp : dp = 1，累加器和输入图像具有相同的分辨率，如果dp = 2累加器便有输入图像一半那么大的宽度和高度。  
+	//minDist : 霍夫检测到的圆的圆心之间的最小距离，即让算法能明显区分的两个不同圆之间的最小距离。   
+	//param1 : 指定检测方法的第一个参数， 它表示传递给Canny边缘检测算子的高阈值(低阈值是高阈值的一半)，有默认值100      
+	//param2 : 指定检测方法的第二个参数，它表示在检测阶段圆心的累加器阈值。它越小就越可以检测到更多根本不存在的圆，   
+	//它越大的话能通过检测的圆就更加接近完美的圆形了。有默认值100   
+	//minRadius : 圆的最小半径    
+	//maxRadius : 圆的最大半径     
+	HoughCircles(gray, pcircles, CV_HOUGH_GRADIENT, 1, 20, 100, 38.6, 5, 50);    
+	//输出的是3参数集合pcircles;    
+	//在输出图像上画圆       
+	src.copyTo(dst2);      
+	//每次读取出集合中的一个3参数数组cc；分别是圆心与半径   
+	for (int i = 0; i < pcircles.size(); i++) {            
+		Vec3f cc = pcircles[i];                      
+		//画在dst2上；圆心点坐标；半径；颜色；线宽度；线条类型     
+		circle(dst2,Point(cc[0], cc[1]), cc[2], Scalar(0, 0, 255), 2,8);    
+	}    
+	imshow("houghyuan",dst2);   
+	waitKey(0);  
+	return 0;
+}
