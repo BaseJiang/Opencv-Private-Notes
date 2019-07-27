@@ -1,0 +1,63 @@
+//图像卷积运算的时候涉及到对图像边缘像素的估计，这里讲介绍图像边缘像素进行卷积运算。
+//大部分opencv中的函数是将原图像复制到一个比原图像尺寸更大的图像中然后实现边缘的自动填充。
+//这种方式得到的像素点可以执行卷积操作。
+// BORDER_CONSTANT: 使用一个常数填充像素边缘
+// BORDER_REPLICATE : 复制最近的一行或一列像素并一直延伸至添加边缘的宽度或高度；
+// BORDER_DEFAULT：将最近的像素进行映射；
+// BORDER_WRAP：将对面的像素进行映射。
+// copyMakeBorder(InputArray  src,OutputArray  dst, int  top, int  bottom, int  left, int  right,
+//        int  borderType, const Scalar& value = Scalar());
+//参数1：输入图像；参数2：输出图像； int top / bottom / left / right四个参数指定原图像由每个方向上向外插入的像素个数，
+//例如：top = 1, bottom = 1, left = 1, right = 1意味着图像向外扩充一个像素。
+// int borderType : 边缘类型
+// const Scalar & value = Scalar() : 当像素填充类型为BORDER_CONSTANT时填充的像素值。
+#include<opencv2/opencv.hpp>
+#include<iostream>
+#include<math.h>
+using namespace cv;
+int main(int argc, char** argv) {
+	Mat src,dst1, dst2, dst3, dst4,dst11,dst22,dst33,dst44;
+	src = imread("F:/PHOTO/dog.jpg");
+	if (!src.data) {
+		printf("can not find the picture/n");
+		return -1;
+	}
+	char INPUT[] = "intputImg";
+	namedWindow(INPUT, CV_WINDOW_AUTOSIZE);
+	imshow(INPUT,src);
+	int top = (int)(0.05 * src.rows);
+	int bottom = (int)(0.05 * src.rows);
+	int left = (int)(0.05 * src.cols);
+	int right = (int)(0.05 * src.cols);
+
+	RNG rng(12345);
+	// 填充颜色随机
+	Scalar color = Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
+
+	// BORDER_CONSTANT : 使用一个常数填充像素边缘
+	copyMakeBorder(src, dst1, top, bottom, left, right, BORDER_CONSTANT, color);
+	// BORDER_REPLICATE : 复制最近的一行或一列像素并一直延伸至添加边缘的宽度或高度；
+	copyMakeBorder(src, dst2, top, bottom, left, right, BORDER_REPLICATE, color);
+	// BORDER_DEFAULT：将最近的像素进行映射；
+	copyMakeBorder(src, dst3, top, bottom, left, right, BORDER_DEFAULT, color);
+	// BORDER_WRAP：将对面的像素进行映射。
+	copyMakeBorder(src, dst4, top, bottom, left, right, BORDER_WRAP, color);
+
+	//以上操作仅完成了图像的填充，接下来进行Gaussian 模糊
+	GaussianBlur(dst1, dst11, Size(5, 5), 0, 0);
+	GaussianBlur(dst2, dst22, Size(5, 5), 0, 0);
+	GaussianBlur(dst3, dst33, Size(5, 5), 0, 0);
+	GaussianBlur(dst4, dst44, Size(5, 5), 0, 0);
+
+	//最后显示填充并经过高斯模糊时候的图像
+	namedWindow("constant_img", CV_WINDOW_AUTOSIZE);
+	imshow("constant_img", dst11);
+	namedWindow("replicate_img", CV_WINDOW_AUTOSIZE);
+	imshow("replicate_img", dst22);
+	namedWindow("default_img", CV_WINDOW_AUTOSIZE);
+	imshow("default_img", dst33);
+	namedWindow("wrap_img", CV_WINDOW_AUTOSIZE);
+	imshow("wrap_img", dst44);
+	waitKey(0);
+	return 0;
+}
