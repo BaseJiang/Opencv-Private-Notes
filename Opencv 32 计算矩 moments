@@ -1,0 +1,107 @@
+//计算矩cv::moments
+//moments(
+//     InputArray  array,输入数据
+//     bool   binaryImage = false  是否为二值图像
+//)
+//contourArea(
+//     InputArray  contour,输入轮廓数据
+//     bool   oriented  默认false、返回绝对值)
+//arcLength(
+//     InputArray  curve, 输入曲线数据
+//     bool   closed 是否是封闭曲线
+//)
+//图像识别的一个核心问题是图像的特征提取，简单描述即为用一组简单的数据(数据描述量)来描述整个图像，这组数据越简单越有代表性越好。
+//良好的特征不受光线、噪点、几何形变的干扰，图像识别技术的发展中，不断有新的描述图像特征提出，而图像不变矩就是其中一个。
+//从图像中计算出来的矩通常描述了图像不同种类的几何特征如：大小、灰度、方向、形状等，图像矩广泛应用于模式识别、目标分类、目标识别与防伪估计、图像编码与重构等领域。
+//严格来讲矩是概率与统计中的一个概念，是随机变量的一种数字特征。//设 xx 为随机变量，C为常数，则量E[(x−c) ^ k]称为X关于C点的k阶矩。//比较重要的两种情况如下：
+//1.c = 0, 这时a_k = E(X ^ k)称为X的k阶原点矩;//2.c = E(X), 这时μ_k = E[(X−EX) ^ k]称为X的k阶中心矩
+//一阶原点矩就是期望，一阶中心矩μ_1 = 0，二阶中心矩μ_2就是X的方差Var(X)。在统计学上，高于4阶的矩极少使用，
+//μ_3可以去衡量分布是否有偏，μ_4可以衡量分布（密度）在均值拘谨的陡峭程度。
+//针对一幅图像，我们把像素的坐标看成是一个二维随机变量(X, Y)，那么一副灰度图可以用二维灰度图密度函数来表示，因此可以用矩来描述灰度图像的特征。
+//不变矩(Invariant Moments)是一种高度浓缩的图像特征，具有平移、灰度、尺度、旋转不变性
+//opencv中提供的API用来计算中心矩和Hu矩，下面主要介绍Hu的原理。
+//2.原理//一幅M×N的数字图像f(i, j)，其p + q阶几何矩m_pq和中心矩μ_pq为：
+//其中f(i, j)为图像在坐标点(i, j)处的灰度值。
+//若将m_00看做图像的灰度质量，则(i¯, j¯)为图像的质心坐标，那么难中心矩μ_pq反应的是图像灰度相对于其灰度质心的分布情况，
+//可以用几何矩来表示中心矩0~3阶中心矩与几何矩的关系如下：为了消除图像比例变化带来的影响，定义规格化中心矩如下：
+//利用二阶和三阶规格中心矩可以导出下面7个不变矩组(Φ1 Φ7), 它们在图像平移、旋转和比例变化时保持不变
+//3.opencv API//opencv中提供了moments()来计算图像中的中心矩(最高到三阶)，HuMoments()用于由中心矩计算Hu矩.同时配合函数contourArea函数
+//计算轮廓面积和arcLength来计算轮廓或曲线长度
+//moments()
+//cv::moments(InputArray  array, 输入数组，可以是光栅图像(单通道，8 - bit或浮点型二维数组), 或者是一个二维数组(1 X N或N X 1), 二维数组类型为Point或Point2f
+//     bool    binaryImage = false 默认值是false，如果为true，则所有非零的像素都会按值1对待，也就是说相当于对图像进行了二值化处理，阈值为1，此参数仅对图像有效。
+//)
+//double cv::contourArea(InputArray  contour, 是一个向量，二维点，可以是vector或Mat类型
+//bool    oriented = false//)
+//contour:是一个向量，二维点，可以是vector或Mat类型
+//oriented : 有默认值false，面向区域标识符，如果为true，该函数返回一个带符号的面积，其正负取决于轮廓的方向(顺时针还是逆时针)。
+//可以根据面积的符号来确定轮廓的位置。如果是默认值false，则面积以绝对值的形式返回.
+//该函数使用Green formula计算轮廓面积，返回面积和非零像素数量如果使用drawContours或fillPoly绘制轮廓，可能导致不同。
+////用于计算封闭轮廓的周长或曲线的长度
+//double cv::arcLength(InputArray  curve, 输入二维点集，可以是vector或Mat类型
+//     bool    closed          曲线是否封闭的标志位，true则封闭否则不封闭//)
+//步骤 提取图像边缘
+//发现轮廓
+//计算每个轮廓对象的矩
+//计算每个对象的中心、弧长、面积
+
+#include<opencv2/opencv.hpp>
+#include<iostream>
+#include<math.h>
+using namespace cv;using namespace std;
+Mat src, gray,gaussianimage;
+int threshold_value = 80;
+int threshold_max = 255;
+RNG rng(12345);
+void MomentCallBack(int, void*);
+int main(int argc, char** argv) {   
+	src = imread("F:/PHOTO/balls.jpg");   
+	if (!src.data) {          
+		cout << "图像加载失败。。" << endl;      
+		return -1;    
+	}     
+	cvtColor(src,gray,CV_BGR2GRAY);    
+	GaussianBlur(gray, gaussianimage, Size(3, 3), 0, 0);   
+	imshow("原图像",src);   
+	imshow("高斯处理后图像", gaussianimage);  
+	MomentCallBack(0,0);   
+	createTrackbar("mytrackbar","outputImage",&threshold_value,threshold_max,MomentCallBack);   
+	waitKey(0);    
+	return 0;
+}
+void MomentCallBack(int,void*) {   
+	Mat canny_output;   
+	//canny 边缘检测     
+	vector<vector<Point>> contours;    
+	vector<Vec4i> hierarchy;
+	Canny(gaussianimage, canny_output, threshold_value, threshold_value * 2, 3, false);    
+	//发现轮廓   
+	findContours(canny_output, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE, Point(0, 0));         
+	//定义一个矩数组，每个轮廓都有一个   
+	vector<Moments> contours_moments(contours.size());      
+	//定义一个圆心数组，用来存放圆心位置信息    
+	vector<Point2f>ccs(contours.size());   
+	for (int i = 0; i < contours.size(); i++) {     
+		//计算矩数组         
+		contours_moments[i] = moments(contours[i],false);       
+		//计算图像的质心位置        
+		//static_cast通常这个运算符用来进行数值类型间的转化，比如int到float，也可以是自定义的某些数据类型的转化。      
+		ccs[i] = Point(static_cast<float>(contours_moments[i].m10 / contours_moments[i].m00),               
+			static_cast<float>(contours_moments[i].m01/ contours_moments[i].m00)); 
+	}  
+	//绘制轮廓   
+	Mat drawImg = Mat::zeros(canny_output.size(), CV_8UC3);    
+	for (int i = 0; i < contours.size(); i++) {       
+		Scalar color = Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));         
+		//！！绘制轮廓参数顺序不能错     
+		drawContours(drawImg, contours, i, color, 2,8,hierarchy,0,Point(0,0));    
+		//打印出图像中心坐标    
+		printf("center point x:%2f y:%2f/n",ccs[i].x,ccs[i].y);       
+		//求各轮廓面积、弧长       
+		printf("contours %d area:%2f arc length:%2f\n",i,contourArea(contours[i]),arcLength(contours[i],true));     
+		//绘制圆        
+		circle(drawImg, ccs[i], 2, color, 2, 8);    
+	}    
+	imshow("outputImage",drawImg);  
+	return;
+}
