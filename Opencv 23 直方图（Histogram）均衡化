@@ -1,0 +1,32 @@
+//图像直方图，是指对整个图像在灰度范围内的像素值(0~255)统计出现频率次数，据此生成的直方图，称为图像直方图。
+//直方图反映了图像灰度的分布情况。是图像的统计学特征，是一种提高图像对比度的方法，拉伸图像灰度值范围。
+//remap我们知道可以将图像灰度分布从一个分布映射到另外一个分布，然后再得到映射后的像素值即可。
+//直方图均衡化是通过使用累积函数对灰度值进行“调整”以实现对比度的增强，其中心思想是把原始图像的灰度直方图
+//从比较集中的某个灰度区间变成在全部灰度范围内的均匀分布。也就是把一个分布(给定的直方图)映射到另一个分布
+//（一个更宽更统一的强度值分布）
+//equalizeHist(
+//     InputArray src,// 输入图像，必须是8-bit的单通道图像
+//     OutputArray dst// 输出结果
+//)
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <math.h>
+using namespace cv;
+int main(int argc, char** argv) {
+       Mat src, gray,dst;
+       src = imread("F:/PHOTO/dog.jpg");
+       if (!src.data) {
+              printf("could not load image...\n");
+              return -1;
+       }
+         imshow("inputimg", src);
+
+       cvtColor(src, gray, CV_BGR2GRAY);
+         imshow("gray", gray);
+
+       equalizeHist(gray, dst);
+       imshow("dstimg", dst);
+
+       waitKey(0);
+       return 0;
+}
