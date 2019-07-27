@@ -1,0 +1,57 @@
+
+//课程39 Shi-Tomasi 角点检测理论
+//函数cv.goodFeaturesToTrack()。这个函数可以使用Shi - Tomasi方法获取图像中的N个最好的角点。
+//goodFeaturesToTrack(image, maxCorners, qualityLevel, minDistance, corners = None, mask = None, blockSize = None, useHarrisDetector = None, k = None)
+//第一个参数image：8位或32位单通道灰度图像；
+//第二个参数corners：位置点向量，保存的是检测到的角点的坐标；
+//第三个参数maxCorners：定义可以检测到的角点的数量的最大值；
+//第四个参数qualityLevel：检测到的角点的质量等级，角点特征值小于qualityLevel*最大特征值的点将被舍弃；
+//第五个参数minDistance：两个角点间最小间距，以像素为单位；
+//第六个参数mask：指定检测区域，若检测整幅图像，mask置为空Mat()；
+//第七个参数blockSize：计算协方差矩阵时窗口大小；
+//第八个参数useHarrisDetector：是否使用Harris角点检测，为false，则使用Shi-Tomasi算子；
+//第九个参数k：留给Harris角点检测算子用的中间参数，一般取经验值0.04~0.06。第八个参数为false时，该参数不起作用；
+
+#include "pch.h"
+#include <opencv2/opencv.hpp>
+#include <iostream>
+using namespace cv;
+using namespace std;
+int num_corners = 25;
+int max_corners = 200;
+const char* output_title = "ShiTomasi Detector";
+void ShiTomasi_Demo(int, void*);
+Mat src, gray_src;
+RNG rng(12345);
+int main(int argc, char** argv) {
+	src = imread("F:/PHOTO/building.jpg");
+	if (src.empty()) {
+		printf("could not load image...\n");
+		return -1;
+	}
+	imshow("inputimage", src);
+	cvtColor(src, gray_src, COLOR_BGR2GRAY);
+	ShiTomasi_Demo(0, 0);
+	createTrackbar("Num Corners:", output_title, &num_corners, max_corners, ShiTomasi_Demo);
+	waitKey(0);
+	return 0;
+}
+void ShiTomasi_Demo(int, void*) {
+	if (num_corners < 5) {
+		num_corners = 5;
+	}
+	vector<Point2f> corners;
+	double qualityLevel = 0.01;
+	double minDistance = 10;
+	int blockSize = 3;
+	bool useHarris = false;
+	double k = 0.04;
+	Mat resultImg = src.clone();
+	//输入灰度图、输出角点坐标、想要检测到的角点数目、角点的质量水平、两个角点之间的最短欧式距离、mask 、窗口大小、不使用harris、权值系数。
+	goodFeaturesToTrack(gray_src, corners, num_corners, qualityLevel, minDistance, Mat(), blockSize, useHarris, k);
+	printf("Number of Detected Corners:  %d\n", corners.size());
+	for (size_t t = 0; t < corners.size(); t++) {
+		circle(resultImg, corners[t], 2, Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255)), 2, 8, 0);
+	}
+	imshow(output_title, resultImg);
+}
