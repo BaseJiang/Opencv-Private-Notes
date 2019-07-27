@@ -1,0 +1,122 @@
+//课程01 基础知识
+课程01 基础知识
+	void minMaxLoc(InputArray src, CV_OUT double* minVal,
+				   CV_OUT double* maxVal=0, CV_OUT Point* minLoc=0,
+				   CV_OUT Point* maxLoc=0, InputArray mask=noArray());
+src – 输入单通道矩阵（图像）.
+	minVal – 指向最小值的指针， 如果未指定则使用NULL
+	maxVal – 指向最大值的指针， 
+	如果未指定则使用NULL
+	minLoc – 指向最小值位置（2维情况）的指针， 如果未指定则使用NULL
+	maxLoc – 指向最大值位置（2维情况）的指针， 如果未指定则使用NULL
+	mask – 可选的模板，用于选择待处理子区域 
+	1--
+	bit_depth---比特数---代表8bite,16bites,32bites,64bites---
+	举个例子吧--比如说,如果你现在创建了一个存储--灰度图片的Mat对象,
+	这个图像的大小为宽100,高100,那么,现在这张灰度图片中有10000个像素点，它每一个像素点在内存空间所占的空间大小是8bite,
+	8位--所以它对应的就是CV_8  
+	2--
+	S|U|F--S--代表---signed int---有符号整形           
+	U--代表--unsigned int--无符号整形            
+	F--代表--float---------单精度浮点型  
+	3--
+	C<number_of_channels>----代表---一张图片的通道数,比如:         
+    1--灰度图片--grayImg---是--单通道图像         
+	2--RGB彩色图像---------是--3通道图像         
+	3--带Alph通道的RGB图像--是--4通道图像    
+
+	【1】CV_8UC1---则可以创建----8位无符号的单通道---灰度图片------grayImg
+	#define CV_8UC1 CV_MAKETYPE(CV_8U,1)
+	#define CV_8UC2 CV_MAKETYPE(CV_8U,2)
+	【2】CV_8UC3---则可以创建----8位无符号的三通道---RGB彩色图像---colorImg
+	#define CV_8UC3 CV_MAKETYPE(CV_8U,3)
+	【3】CV_8UC4--则可以创建-----8位无符号的四通道---带透明色的RGB图像RGB 3个字节,
+	每个字节8位 表示0-255 黑色（0，0，0）；白色（255,255,255）；
+	第一个字节B蓝色通道，蓝色为（255,0,0），
+	第二个字节G绿色通道，绿色为（0,255,0）；
+	第三个字节R红色通道，红色为（0,0,255）；
+	灰度 1个字节 0-255 0：黑色 255：白色
+
+
+	argc 是 argument count的缩写，表示传入main函数的参数个数；
+	argv 是 argument vector的缩写，表示传入main函数的参数序列或指针，
+	
+	
+	图像高频部分代表了图像的细节、纹理信息；
+	低频代表了图像的轮廓信息。
+	低通-》模糊高通-》锐化腐蚀和膨胀是针对白色部分（高亮部分）而言的。
+
+	膨胀就是对图像高亮部分进行“领域扩张”，效果图拥有比原图更大的高亮区域；
+
+	腐蚀是原图中的高亮区域被蚕食，效果图拥有比原图更小的高亮区域。
+
+	开运算：先腐蚀再膨胀，用来消除小物体闭运算：先膨胀再腐蚀，用于排除小型黑洞
+
+	形态学梯度：就是膨胀图与俯视图之差，用于保留物体的边缘轮廓。
+	顶帽：原图像与开运算图之差，用于分离比邻近点亮一些的斑块。
+	黑帽：闭运算与原图像之差，用于分离比邻近点暗一些的斑块。
+	//Sobel 函数 不全待补充
+	//CV_EXPORTS_W Mat imread(const String& filename, int flags = IMREAD_COLOR);
+	//当我们在使用imread()函数而没有给出第二个参数的时候，第二个参数的默认值是IMREAD_COLOR，
+	//即默认读入的图片是彩色图片,当为0时候，读入灰色图片
+	//尽量避免使用 using namespace std; 等直接引入整个命名空间，否则会因为命名空间污染导致很多不必要的问题，
+	//比如自己写的某个函数，名称正好和 std 中的一样， 编译器会不知道使用哪一个， 引起编译报错， 
+建议使用 ://std::cout << "Hello World" << std::endl;
+#include<opencv2/core/core.hpp>
+#include<opencv2/imgcodecs.hpp>
+#include<opencv2/opencv.hpp>
+#include<opencv2/highgui.hpp>
+#include<iostream>using namespace cv;
+	using namespace std;int main(int argc, char** args) {
+		Mat image = imread("F:/test.png", IMREAD_COLOR);
+		if (image.empty()) {
+			cout << "could not find the image resource..." << std::endl;
+			return -1;       }
+		Mat grayImg;
+		cvtColor(image, grayImg, COLOR_BGR2GRAY);
+		//转换方式1，这种是转换为灰度图，经常使用，需要记住 
+		Mat sobelx;       Sobel(grayImg, sobelx, CV_32F, 1, 0);       
+		//该函数接受了以下参数:         
+		// src_gray: 在本例中为输入图像，元素类型 CV_8U       
+		//grad_x / grad_y : 输出图像.       
+		//ddepth : 输出图像的深度，设定为 CV_16S 避免外溢。       
+		//x_order : x 方向求导的阶数。       
+		//y_order : y 方向求导的阶数。       
+		//scale, delta 和 BORDER_DEFAULT : 使用默认值       
+		//注意为了在 x 方向求导我们使用 : ， .采用同样方法在 y 方向求导。       
+		//将中间结果转换到 CV_8U :
+		double minVal, maxVal;
+		minMaxLoc(sobelx, &minVal, &maxVal);
+		Mat draw;
+		sobelx.convertTo(draw, CV_8U, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
+		namedWindow("MY Image", CV_WINDOW_AUTOSIZE);
+		imshow("MY Image", draw); 
+		waitKey(0); 
+		return 0;
+	}
+
+
+
+
+OpenCV提供了两个简便的可用于计时的函数 getTickCount() 和 getTickFrequency() 。第一个函数返回你的CPU自某个事件
+（如启动电脑）以来走过的时钟周期数，第二个函数返回你的CPU一秒钟所走的时钟周期数。这样，我们就能轻松地以秒为单位对某运算计时：
+
+
+double t = (double)getTickCount();
+t = ((double)getTickCount() - t)/getTickFrequency();
+cout << "Times passed in seconds: " << t << endl;
+
+
+滤波可分为低通滤波 、高通滤波
+
+	高频信号 用来描述 细节
+	低频信号 用来描述 轮廓
+	低通滤波 （允许 低频率 信号通过）是模糊
+	高通滤波（允许高频率 信号通过）是锐化
+
+
+
+
+
+
+
