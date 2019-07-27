@@ -1,0 +1,151 @@
+
+//课程28 轮廓发现
+//opencv中提供findContours()函数来寻找图像中物体的轮廓，并结合drawContours()函数将找到的轮廓绘制出。
+//首先看一下findContours(), opencv中提供了两种定义形式
+//findContours()//void cv::findContours(InputOutputArray    image,
+//     OutputArrayOfArrays          contours,
+//     OutputArray               hierarchy,
+//     int                    mode,
+//     int                    method,
+//     Point                   offset = Point()
+//)
+//参数解释
+//      image : 输入图像二值图像。
+//     contours : 检测到的轮廓，每个轮廓都是以点向量的形式进行存储即使用point类型的vector表示
+//     hierarchy : 可选的输出向量(std::vector)，包含了图像的拓扑信息
+//     mode轮廓检索模式，可以通过cv::RetrievalModes()，如下
+//     RETR_EXTERNAL : 表示只检测最外层轮廓
+//     RETR_LIST : 提取所有轮廓，并放置在list中，检测的轮廓不建立等级关系
+//     RETR_CCOMP : 提取所有轮廓，将轮廓组织成双层结构, 顶层为连通域的外围边界，次层位内层边界
+//     RETR_TREE : 提取所有轮廓并重新建立网状轮廓结构
+//     RETR_FLOODFILL：官网没有介绍，应该是洪水填充法
+//     method : 轮廓近似方法
+//     CHAIN_APPROX_NONE：获取每个轮廓的每个像素，相邻的两个点的像素位置差不超过1
+//     CHAIN_APPROX_SIMPLE：压缩水平方向，垂直方向，对角线方向的元素，值保留该方向的重点坐标，如果一个矩形轮廓只需4个点来保存轮廓信息
+//     CHAIN_APPROX_TC89_L1和CHAIN_APPROX_TC89_KCOS使用Teh - Chinl链逼近算法中的一种
+//     offset : 轮廓点可选偏移量，有默认值Point()，对ROI图像中找出的轮廓并要在整个图像中进行分析时，使用
+//     void cv::drawContours(InputOutputArray    image,
+//            InputArrayOfArrays         contours,
+//            int                   contourIdx,
+//            const Scalar &           color,
+//            int                  thickness = 1,
+//            int                 lineType = LINE_8,
+//            InputArray             hierarchy = noArray(),
+//            int                 maxLevel = INT_MAX,
+//            Point               offset = Point()
+//     )
+//     
+//     参数解释
+//     image :输出图像，Mat类型即可
+//     contours : 全部发现的轮廓对象,使用findContours检测到的轮廓数据，每个轮廓以点向量的形式存储，point类型的vector
+//     contourIdx : 绘制轮廓的只是变量，如果为负值则绘制所有输入轮廓
+//     color : 轮廓颜色
+//     thickness : 绘制轮廓所用线条粗细度，如果值为负值，则在轮廓内部绘制
+//     lineTpye : 线条类型，有默认值LINE_8，有如下可选类型
+//     hierarchy : 可选层次结构信息,拓扑结构图
+//     maxLevel : 用于绘制轮廓的最大等级, 最大层数， 0只绘制当前的，1表示绘制绘制当前及其内嵌的轮廓
+//      offset : 可选轮廓便宜参数，用制定偏移量offset = (dx, dy)给出绘制轮廓的偏移量
+//步骤：输入图像转为灰度图像cvtColor//使用Canny进行边缘提取，得到二值图像
+//使用findContours寻找轮廓
+//使用drawContours绘制轮廓findContours先介绍一下findContours函数，
+//函数原型：void findContours( InputOutputArray image, OutputArrayOfArrays contours,OutputArray hierarchy, int mode,int method, Point offset=Point());
+第一个参数：image，单通道图像矩阵，可以是灰度图，但更常用的是二值图像，一般是经过Canny、拉普拉斯等边缘检测算子处理过的二值图像；
+	第二个参数：contours，定义为“vector<vector<Point>> contours”，是一个向量，向量内每个元素保存了一组由连续的Point点构成的点的集合的向量，
+	一个元素包含一组Point点集，就是一个轮廓。  有多少轮廓，向量contours就有多少元素。
+	第三个参数：hierarchy，定义为“vector<Vec4i> hierarchy”，hierarchy也是一个向量，向量内每个元素保存了一个包含4个int整型的数组。
+	向量hiararchy内的元素和轮廓向量contours内的元素是一一对应的，向量的容量相同。
+	hierarchy向量内每一个元素的4个int型变量——hierarchy[i][0] ~hierarchy[i][3]，分别表示第 i个轮廓的后一个轮廓、前一个轮廓、父轮廓、内嵌轮廓的索引编号。
+	如果当前轮廓没有对应的后一个轮廓、前一个轮廓、父轮廓或内嵌轮廓的话，则hierarchy[i][0] ~hierarchy[i][3]的相应位被设置为默认值-1。
+	第四个参数：int型的mode，定义轮廓的检索模式：           
+	取值一：CV_RETR_EXTERNAL只检测最外围轮廓，包含在外围轮廓内的内围轮廓被忽略           
+	取值二：CV_RETR_LIST   检测所有的轮廓，包括内围、外围轮廓，但是检测到的轮廓不建立等级关系，彼此之间独立，没有等级关系，这就意味着这个检索模式下不存在父轮廓或内嵌轮廓，  
+	所以hierarchy向量内所有元素的第3、第4个分量都会被置为-1。           
+	取值三：CV_RETR_CCOMP  检测所有的轮廓，但所有轮廓只建立两个等级关系，外围为顶层，若外围内的内围轮廓还包含了其他的轮廓信息，则内围内的所有轮廓均归属于顶层           
+	取值四：CV_RETR_TREE， 检测所有轮廓，所有轮廓建立一个等级树结构。外层轮廓包含内层轮廓，内层轮廓还可以继续包含内嵌轮廓。
+	第五个参数：int型的method，定义轮廓的近似方法：           
+	取值一：CV_CHAIN_APPROX_NONE 保存物体边界上所有连续的轮廓点到contours向量内           
+	取值二：CV_CHAIN_APPROX_SIMPLE 仅保存轮廓的拐点信息，把所有轮廓拐点处的点保存入contours 向量内，拐点与拐点之间直线段上的信息点不予保留           
+	取值三和四：CV_CHAIN_APPROX_TC89_L1，CV_CHAIN_APPROX_TC89_KCOS使用teh-Chinl chain 近似算法
+	第六个参数：Point偏移量，所有的轮廓信息相对于原始图像对应点的偏移量，相当于在每一个检测出的轮廓点上加上该偏移量，并且Point还可以是负值！
+
+	绘制轮廓drawContours函数：void drawContours( InputOutputArray image, InputArrayOfArrays contours,int contourIdx, const Scalar& color,int thickness=1, int lineType=8,InputArray hierarchy=noArray(),int maxLevel=INT_MAX, Point offset=Point() );
+InputOutputArray image,
+	//要绘制轮廓的图像 InputArrayOfArrays contours,
+	//所有输入的轮廓，每个轮廓被保存成一个point向量 int contourIdx,
+	//指定要绘制轮廓的编号，如果是负数，则绘制所有的轮廓 const Scalar& color,
+	//绘制轮廓所用的颜色 int thickness = 1,
+	//绘制轮廓的线的粗细，如果是负数，则轮廓内部被填充 int lineType = 8, 
+	//绘制轮廓的线的连通性 InputArray hierarchy = noArray(),
+	//关于层级的可选参数，只有绘制部分轮廓时才会用到 int maxLevel = INT_MAX,
+	//绘制轮廓的最高级别，这个参数只有hierarchy有效的时候才有效                                          
+	//maxLevel=0，绘制与输入轮廓属于同一等级的所有轮廓即输入轮廓和与其相邻的轮廓                                          
+	//maxLevel=1, 绘制与输入轮廓同一等级的所有轮廓与其子节点。                                          
+	//maxLevel=2，绘制与输入轮廓同一等级的所有轮廓与其子节点以及子节点的子节点 Point offset = Point()
+#include<opencv2/opencv.hpp>
+#include<iostream>
+#include<math.h>
+	using namespace cv;
+using namespace std;
+Mat src, dst;
+const char* output_win = "findcontours_demo";
+int threshold_value = 100;int threshold_max = 255;
+//回调函数Demo_Contoursvoid Demo_Contours(int, void*);
+int main(int argc, char** argv) {
+	src = imread("F:/PHOTO/coins.jpg");
+	if (src.empty()) {
+		printf("can not find the picture");
+		return -1;
+	}       
+	imshow("input_image",src);
+	cvtColor(src,src,CV_BGR2GRAY);
+	//Trackbar 是调用 demo的函数 所以要把调用的函数放在trackbar前面
+	Demo_Contours(0, 0);
+	createTrackbar("mytrackbar",output_win,&threshold_value,threshold_max,Demo_Contours);
+	waitKey(0);
+	return -1;
+}
+void Demo_Contours(int, void*) {
+	Mat canny_output;         
+	//Canny 边缘检测
+	//参数 输入灰度图、输出二值图、低阈值、高阈值（一般是低阈值的二或三倍）、Soble算子的size，通常3x3，取值3!、true是开平方和归一化
+	//false是绝对值归一化。
+	Canny(src,canny_output,threshold_value,threshold_value*2,3,false);
+	vector<vector<Point>> contours;   
+	// 轮廓对象       
+	vector<Vec4i> hierachy;        
+	//网络拓扑      
+	//参数解释      
+	//image : 输入图像，图像必须为8 - bit单通道图像，图像中的非零像素将被视为1，0像素保留其像素值，故加载图像后会自动转换为二值图像      
+	// 我们同样可以使用cv::compare, cv::inRange, cv::threshold, cv::adaptiveThreshold, cv::Canny等函数来创建二值图像，      
+	// 如果第四个参数为cv::RETR_CCOMP或cv::RETR_FLOODFILL，输入图像可以是32 - bit整型图像(CV_32SC1)      
+	// contours : 检测到的轮廓，每个轮廓都是以点向量的形式进行存储即使用point类型的vector表示      
+	// hierarchy : 可选的输出向量(std::vector)，包含了图像的拓扑信息，作为轮廓数量的表示hierarchy包含了很多元素，      
+	// 每个轮廓contours[i]对应hierarchy中hierarchy[i][0]~hierarchy[i][3], 分别表示后一个轮廓，前一个轮廓，父轮廓，内嵌轮廓的索引，如果          
+	//  没有对应项，则相应的hierarchy[i]设置为负数。      // mode轮廓检索模式，可以通过cv::RetrievalModes()，如下      
+	// RETR_EXTERNAL : 表示只检测最外层轮廓，对所有轮廓设置hierarchy[i][2] = hierarchy[i][3] = -1      
+	// RETR_LIST : 提取所有轮廓，并放置在list中，检测的轮廓不建立等级关系      
+	// RETR_CCOMP : 提取所有轮廓，并将轮廓组织成双层结构(two - level hierarchy), 顶层为连通域的外围边界，次层位内层边界      
+	// RETR_TREE : 提取所有轮廓并重新建立网状轮廓结构      //RETR_FLOODFILL：官网没有介绍，应该是洪水填充法      
+	//method : 轮廓近似方法      // CHAIN_APPROX_NONE：获取每个轮廓的每个像素，相邻的两个点的像素位置差不超过1      
+	// CHAIN_APPROX_SIMPLE：压缩水平方向，垂直方向，对角线方向的元素，值保留该方向的重点坐标，如果一个矩形轮廓只需4个点来保存轮廓信息      
+	// CHAIN_APPROX_TC89_L1和CHAIN_APPROX_TC89_KCOS使用Teh - Chinl链逼近算法中的一种      
+	// offset : 轮廓点可选偏移量，有默认值Point()，对ROI图像中找出的轮廓并要在整个图像中进行分析时，使用      
+	//RETR_EXTERNAL 为只显示外轮廓        //参数：输入的二值图像，轮廓对象、拓扑信息、轮廓检索模式、轮廓近似方法       
+	findContours(canny_output,contours,hierachy,RETR_EXTERNAL,CHAIN_APPROX_SIMPLE,Point(0,0));       
+	//将轮廓画到dst图像文件上       
+	dst = Mat::zeros(src.size(), CV_8UC3);      
+	//循环遍历出轮廓对象，并绘制       
+	for (int i = 0; i < contours.size(); i++) {              
+		Scalar color = Scalar(0, 0, 255);
+		//     参数解释//     image :输出图像，Mat类型即可
+		//     contours : 全部发现的轮廓对象,使用findContours检测到的轮廓数据，每个轮廓以点向量的形式存储，point类型的vector
+		//     contourIdx : 绘制轮廓的只是变量，如果为负值则绘制所有输入轮廓//     color : 轮廓颜色
+		//     thickness : 绘制轮廓所用线条粗细度，如果值为负值，则在轮廓内部绘制
+		//     lineTpye : 线条类型，有默认值LINE_8，有如下可选类型
+		//     hierarchy : 可选层次结构信息,拓扑结构图
+		//     maxLevel : 用于绘制轮廓的最大等级, 最大层数， 0只绘制当前的，1表示绘制绘制当前及其内嵌的轮廓
+		//     offset : 可选轮廓便宜参数，用制定偏移量offset = (dx, dy)给出绘制轮廓的偏移量
+		drawContours(dst, contours, i, color, 3, 8, hierachy, 0, Point(0, 0));
+	}       
+	imshow(output_win,dst);
+}
