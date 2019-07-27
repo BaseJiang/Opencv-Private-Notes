@@ -1,0 +1,149 @@
+
+//SURF特征提取过程：
+//第一步，利用SURF特征的特征描述办法，其操作封装在类SurfFeatureDetector中，利用类内的detec函数可以检测出SURF特征的关键点，保存在vector*。
+//第二步，利用SurfDescriptorExtractor类进行特征向量的相关计算，将之前的vector变量变成向量矩阵形式保存在MAt中。
+//第三步，强行匹配两幅图像的特征向量，利用类BruteForceMatcher中的函数match。
+//*使用DescriptorExtractor接口来寻找关键点对应的特征向量。
+//*使用SurfDescriptorExtractor以及它的函数compute来完成特定的计算。
+//*使用BruteForceMatcher来匹配特征向量。
+//*使用函数drawMatches来绘制检测到的匹配点。
+//BruteForceMatcher来匹配特征向量：
+//首先，检测每幅图像中的特征，然后提取它们的描述子。第一幅图像中的每一个特征描述子向量都会与第二幅图中的描述子进行比较，得分最高的一对描述子
+//     （也就是两个向量的距离最近）将被视为哪个特征的最佳匹配。该过程对于第一幅图像中的所有特征进行重复。
+//
+//在基于特征匹配的方法中，Surf算法对物体的旋转、光照等情况有较好的鲁棒性，且教SIFT算法而言计算速度更快。
+//通过Surf算法检测到的特征点其描述符包含了这个点的位置和尺度信息，故对两幅图片进行匹配时可以通过两幅图中特征点匹配对进行匹配。即使物体位置和光照的改变也能够有良好的匹配效果。
+//使用SurfDescriptorExtractor及其函数compute来完成特定计算，
+//使用BruteForceMatcher匹配得到的特征向量，
+//使用函数drawMatches来绘制检测到的匹配点。
+//
+//2.OpenCV API
+//
+//2.1 SurfDescriptorExtractor
+//Surf用来封装的用于计算特征描述子的类，其定义如下
+//
+//typedef SURF cv::xfeatures2d::SurfDescriptorExtractor
+//是SURF的一个重定义，也是类xfeatures2d的一个成员函数，其类定义如下：
+//class SurfDescriptorExtractor : public DescriptorExtractor
+//{
+//public:
+//     SurfDescriptorExtractor(int nOctaves = 4,
+//            int nOctaveLayers = 2, bool extended = false);
+//
+//     virtual void read(const FileNode &fn);
+//     virtual void write(FileStorage &fs) const;
+//     virtual int descriptorSize() const;
+//     virtual int descriptorType() const;
+//protected:
+//}
+//
+//我们可以看出SurfDescriptorExtractor是从DescriptorExtractor公有继承而来。
+//2.2BruteForceMatcher
+//暴力搜索特征点匹配。对于第一集合中的特征描述子，这个匹配寻找在第二个集合中最相近的特征描述子，
+//这种特征描述子匹配支持masking permissible特征描述子集合匹配，其定义如下：
+//
+//template<class Distance>
+//class BruteForceMatcher : public DescriptorMatcher
+//{
+//public:
+//     BruteForceMatcher(Distance d = Distance());
+//     virtual ~BruteForceMatcher();
+//
+//     virtual bool isMaskSupported() const;
+//   virtual Ptr<DescriptorMatcher> clone(bool emptyTrainData = false) const;
+//protected:
+//     ...
+//}
+//
+//从DescriptorMatcher公有继承，同时又有本身的虚成员函数。
+//
+//2.3 drawMatches
+//给定两幅图像，绘制寻找到的特征关键点及其匹配。有两种定义形式如下：
+//void cv::drawMatches(InputArray  img1,
+//     const std::vector< KeyPoint > &     keypoints1,
+//     InputArray  img2,
+//     const std::vector< KeyPoint > &     keypoints2,
+//     const std::vector< DMatch > &      matches1to2,
+//     InputOutputArray    outImg,
+//     const Scalar &  matchColor = Scalar::all(-1),
+//     const Scalar &  singlePointColor = Scalar::all(-1),
+//     const std::vector< char > &     matchesMask = std::vector< char >(),
+//     int     flags = DrawMatchesFlags::DEFAULT
+//)
+//
+//void cv::drawMatches(InputArray  img1,
+//     const std::vector< KeyPoint > &     keypoints1,
+//     InputArray  img2,
+//     const std::vector< KeyPoint > &     keypoints2,
+//     const std::vector< std::vector< DMatch > > &    matches1to2,
+//     InputOutputArray    outImg,
+//     const Scalar &  matchColor = Scalar::all(-1),
+//     const Scalar &  singlePointColor = Scalar::all(-1),
+//     const std::vector< std::vector< char > > &  matchesMask = std::vector< std::vector< char > >(),
+//     int     flags = DrawMatchesFlags::DEFAULT
+//)
+//
+//两个函数的区别仅在于DMatch数据接收的数据类型不同
+//img1 : 接收的第一幅源图像
+//     * *keypoints1 : **KeyPoint类型的关键点（特征点）, 由第一幅图像检测得到
+//     img2 : 接收的第二幅图像
+//     * *keypoints2 : **KeyPoint类型的关键点（特征点）, 由第二幅图像检测得到
+//     **matches1to2 : **DMatch类型矢量，表示从第一幅到第二幅图像的匹配点，表示每一个图1中的特征点豆在图2中有一一对应的点
+//     outImg : 完成匹配后的输出图像，其内容取决于输出图像的标志位flags
+//     matchColor : 两个匹配点进行绘制匹配的颜色，即线和点的颜色，有默认值表示颜色随机生成
+//     singlePointColor : 对于没有匹配对的特征点绘制颜色
+//     matchesMask : 确定哪些是会绘制出来的掩膜，如果掩膜为空，表示所有匹配都进行绘制
+//     flags : 绘制匹配的标志位，有默认值DrawMatchesFlags::DEFAULT。其可选项如下：
+//
+//     enum {
+//     DEFAULT = 0,  //创建输出图像矩阵，对每一个特征点都只绘制其中间部分。
+//     DRAW_OVER_OUTIMG = 1,     //不创建输出图像矩阵，而是在输出图像上绘制匹配对
+//     NOT_DRAW_SINGLE_POINTS = 2,   //单点特征点不被绘制
+//     DRAW_RICH_KEYPOINTS = 4       //对每个特征点，绘制带大小和方向的关键点图像
+//}
+#include "pch.h"
+#include <iostream>
+#include<opencv2/opencv.hpp>
+#include<opencv2/xfeatures2d.hpp>
+using namespace cv;
+using namespace std;
+using namespace cv::xfeatures2d;
+int main()
+{
+	Mat srcImage1 = imread("F:/PHOTO/desk1.jpg", IMREAD_GRAYSCALE);
+	Mat srcImage2 = imread("F:/PHOTO/desk2.jpg", IMREAD_GRAYSCALE);
+	//判断文件是否读取成功
+	if (srcImage1.empty() || srcImage2.empty())
+	{
+		cout << "图像加载失败!";
+		return -1;
+	}
+	else
+		cout << "图像加载成功..." << endl << endl;
+	//检测两幅图像中的特征点
+	int minHessian = 2000;      //定义Hessian矩阵阈值
+
+	//定义Surf检测器
+	Ptr<SURF> detector = SURF::create(minHessian, 4, 3, false, false);
+	//定义两个KeyPoint类型矢量存储检测到的特征点
+	vector<KeyPoint>keypoint1, keypoint2;  
+	detector->detect (srcImage1, keypoint1);
+	detector->detect (srcImage2, keypoint2);
+	//计算特征向量的描述
+	Ptr<SURF>extractor = SURF::create(100,4,3,false,false);
+	Mat descriptors1, descriptors2;
+	extractor->compute(srcImage1, keypoint1, descriptors1);
+	extractor->compute(srcImage2, keypoint2, descriptors2);
+
+	//使用BruteForceMatcher进行描述符匹配
+	Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce");
+	vector< DMatch > matches;
+	matcher->match(descriptors1, descriptors2, matches);
+	//绘制匹配特征点
+	Mat matchImage;
+	drawMatches(srcImage1, keypoint1, srcImage2, keypoint2, matches, matchImage);
+	//显示匹配的图像
+	imshow("Match", matchImage);
+	waitKey(0);
+	return 0;
+}
