@@ -1,0 +1,140 @@
+//直方图反向投影(Back Projection)
+//反向投影是反映直方图模型在目标图像中的分布情况,简单点说就是用直方图模型去目标图像中寻找是否有相似的对象。
+//通常用HSV色彩空间的HS两个通道直方图模型
+//实现步骤与相关API
+//加载图片imread
+//将图像从RGB色彩空间转换到HSV色彩空间cvtColor
+//计算直方图和归一化calcHist与normalize
+//Mat与MatND其中Mat表示二维数组，MatND表示三维或者多维数据，此处均可以用Mat表示。
+//计算反向投影图像 - calcBackProject
+//calcBackProjection()
+//void cv::calcBackProject(const Mat * images,      images:输入图像
+//     int     nimages,                输入图像的数量
+//     const int* channels,                用于计算反向投影的通道列表，通道数必须与直方图维度相匹配
+//     InputArray      hist,            输入的直方图
+//     OutputArray     backProject,        目标反向投影输出图像，是一个单通道图像，与原图像有相同的尺寸和深度
+//     const float** ranges,               直方图中每个维度bin的取值范围
+//     double      scale = 1,
+//     bool    uniform = true
+//)
+//void mixChannels(
+//     const Mat* src, //输入数组或向量矩阵,所有矩阵的大小和深度必须相同。
+//     size_t nsrcs, //矩阵的数量
+//     Mat* dst, //输出数组或矩阵向量,大小和
+//     深度必须与src[0]相同
+//     size_t ndsts,//矩阵的数量
+//     const int* fromTo,//指定被复制通道与要复制到的位置组成的索引对
+//     size_t npairs //fromTo中索引对的数目
+//);
+//示例一：4通道图像分割
+//1、将一个4通道BGRA图像分割成一个3通道BGR和一个单独的alpha通道图像：
+//其中，索引对from_to[] = { 0, 2, 1, 1, 2, 0, 3, 3 }的含义为：
+//bgra的0通道复制到out[]的2通道，即bgr的0通道；
+//bgra的1通道复制到out[]的1通道，即bgr的1通道；
+//bgra的2通道复制到out[]的0通道，即bgr的2通道；
+//bgra的3通道复制到out[]的3通道，即alpha通道；
+//int from_to[] = { 0, 2, 1, 1, 2, 0, 3, 3 };
+//mixChannels(&bgra, 1, out, 2, from_to, 4);
+
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <math.h>
+using namespace std;
+using namespace cv;
+
+Mat src,hsv, hue,dst1;
+int bins = 12;
+void Hist_And_Backprojection(int,void*);
+
+int main(int argc, char** argv) {
+	src = imread("F:/PHOTO/hands.jpg");
+	if (src.empty()) {
+		printf("can not load the image..../n");  
+		return -1;
+	}
+	imshow("input_Img", src);
+	//bgr转为hsv图像
+	cvtColor(src, hsv, CV_BGR2HSV);
+	//分出一个通道来
+	hue.create(hsv.size(), hsv.depth());
+	int from_to[] = { 0,0 };
+	//通道赋值到另一个图像上
+	//参数1：输入图像，参数2：矩阵数量，参数3：输出，参数4：矩阵数量，
+	//参数5：指定被复制通道与要复制到的位置组成的索引对
+	//参数6：索引对的数量
+	mixChannels(&hsv,1,&hue,1,from_to,1);
+	//新建一个滑窗
+	createTrackbar("trackbar","input_Img",&bins,180, Hist_And_Backprojection);
+	//回调函数
+	Hist_And_Backprojection(0,0);
+	waitKey(0);
+	return 0;
+}
+void Hist_And_Backprojection(int, void*) {
+	float range[] = { 0,180 };
+	const float* histrange = {range};
+	Mat h_hist;
+
+	calcHist(
+		//                   const Mat* images,//输入图像指针
+		//                   int images,// 图像数目
+		//                   const int* channels,// 通道数
+		//                   InputArray mask,// 输入mask，可选，不用
+		//                   OutputArray hist,//输出的直方图数据
+		//                   int dims,// 维数
+		//                   const int* histsize,// 直方图级数
+		//                   const float* ranges,// 值域范围
+		//                   bool uniform,// true by default
+		//                   bool accumulate// false by defaut
+		//            )
+		//     images: 输入的图像或数组指针，它们的深度必须为CV_8U, CV_16U或CV_32F中的一类，尺寸必须相同。
+		//     nimages : 输入数组个数，也就是第一个参数中存放了几张图像，有几个原数组要计较直方图的图像的个数。
+		//       此函数可觉得多图像求直方图，所以凡是nimages = 1
+		//     channels : 图像的通道是一个数组，若是是灰度图像则channels[1] = { 0 };
+		//               若是是彩色图像则channels[3] = { 0,1,2 }；若是只是求彩色图像第2个通道的直方图则channels[1] = { 1 };
+		//     mask : 掩膜，默认环境设置为一个空图像，即：Mat()。
+		//     hist : 计算获得的直方图输出的目标直方图，一个二维数组
+		//     dims : 获得的直方图的维数，灰度图像为1维，彩色图像为3维
+		//     histSize : 直方图横坐标的区间数。若是是10，则它会横坐标分为10份，然后统计每个区间的像素点总和
+		//     ranges : 每个维度中bin的取值范围，这是一个二维数组，用来指出每个区间的规模
+		//     uniform : 直方图是否均匀的标识符，有默认值true
+		//     accumulate : 累积标识符，有默认值false, 若为true，直方图再分配阶段不会清零
+		//
+
+
+
+		//计算直方图
+		calcHist(&hue,1,0,Mat(),h_hist,1,&bins,&histrange,true,false);
+	//归一化处理
+	normalize(h_hist,h_hist,0,255,NORM_MINMAX,-1,Mat());
+
+
+	//直方图反向投影
+	//calcBackProjection()
+	//void cv::calcBackProject(const Mat * images,              images:输入图像
+	//     int     nimages,                       输入图像的数量
+	//     const int* channels,                       用于计算反向投影的通道列表，通道数必须与直方图维度相匹配
+	//     InputArray      hist,                   输入的直方图
+	//     OutputArray     backProject,               目标反向投影输出图像，是一个单通道图像，与原图像有相同的尺寸和深度
+	//     const float** ranges,                       直方图中每个维度bin的取值范围
+	//     double      scale = 1,
+	//     bool    uniform = true
+	//)
+	Mat backProject_Img;
+	calcBackProject(&hue,1,0,h_hist,backProject_Img,&histrange,1,true);
+
+	imshow("fanxiangtouyingtu",backProject_Img);
+	//画直方图
+	int hist_heigh = 400;
+	int hist_width = 400;
+	//新建直方图图像文件
+	Mat histImage(hist_width, hist_heigh, CV_8UC3, Scalar(0, 0, 0));
+	int bin_w = (hist_width / bins);
+	for (int i = 1; i < bins; i++) {
+		//注意是h_hist.at<> 归一化的原图像
+		rectangle(histImage, Point((i - 1) * bin_w, (hist_heigh - cvRound(h_hist.at<float>(i - 1) * (400 / 255)))),
+			Point(i * bin_w, hist_heigh), Scalar(0, 255, 255));
+	}
+	imshow("Histtu", histImage);
+	return;
+}
