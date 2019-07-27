@@ -1,0 +1,124 @@
+//图像直方图是对数据集合的一种统计方法，：直方图是图像中像素强度分布的图形表达方式。
+//它统计了每个强度值所具有的像素个数,已知数字的范围包含256个值，将这个范围分割成子区域就是bins，然后再统计在每一个bin的像素数目。
+//采用这一方法统计上面的数字矩阵我们可以得到x轴表示bin, y轴表示各个bin中的像素个数)。
+//直方图可以统计的不仅仅是颜色灰度，它可以统计任何图像特征(如梯度，方向等等).
+//直方图获得的是数据分布的统计图，通常直方图的维数要低于原始数据。图像直方图是用以表示数字图像中亮度分布的直方图，
+//标绘了图像中亮度值的像素数。可以借助观察该直方图了解需要如何调整亮度分布
+//右侧为较亮纯白的区域。因此一张较暗图片的图像直方图中数据多集中于左侧和中间部分，而整体明亮、只有少量阴影的图像则相反。
+//计算机视觉领域常借助图像直方图来实现图像的二值化。
+//a.dims:  需要统计的特征的数据，上面的例子中，dims = 1，因为我们仅仅统计了灰度值(灰度图像)
+//b.bins :  每个特征空间子区段的数据
+//c.range : 每个特征空间的取值范围，在上面的例子中range = [0, 255]
+//如果想统计两个特征，直方图就由上面的二维扩展为三维, x轴和y轴分别代表一个特征，z轴是再bin区间的样本数据，同样的方法适用于更多多维度的情况。
+//在opencv中提供了calcHist()函数计算图像的直方图，计算完成后可以采用前面绘图函数如rectangle、line()等绘制显示出来.calcHist()函数原型如下：
+
+//把多通道图像分为多个单通道图像
+//     split(
+//            const Mat& src, //输入图像
+//            Mat* mvbegin  // 输出的通道图像数组
+//）
+//calcHist(
+//                   const Mat* images,//输入图像指针
+//                   int images,// 图像数目
+//                   const int* channels,// 通道数
+//                   InputArray mask,// 输入mask，可选，不用
+//                   OutputArray hist,//输出的直方图数据
+//                   int dims,// 维数
+//                   const int* histsize,// 直方图级数
+//                   const float* ranges,// 值域范围
+//                   bool uniform,// true by default
+//                   bool accumulate// false by defaut
+//            )
+//     images: 输入的图像或数组指针，它们的深度必须为CV_8U, CV_16U或CV_32F中的一类，尺寸必须相同。
+//     nimages : 输入数组个数，也就是第一个参数中存放了几张图像，有几个原数组要计较直方图的图像的个数。
+//       此函数可觉得多图像求直方图，所以凡是nimages = 1
+//     channels : 图像的通道是一个数组，若是是灰度图像则channels[1] = { 0 };
+//               若是是彩色图像则channels[3] = { 0,1,2 }；若是只是求彩色图像第2个通道的直方图则channels[1] = { 1 };
+//     mask : 掩膜，默认环境设置为一个空图像，即：Mat()。
+//     hist : 计算获得的直方图输出的目标直方图，一个二维数组
+//     dims : 获得的直方图的维数，灰度图像为1维，彩色图像为3维
+//     histSize : 直方图横坐标的区间数。若是是10，则它会横坐标分为10份，然后统计每个区间的像素点总和
+//     ranges : 每个维度中bin的取值范围，这是一个二维数组，用来指出每个区间的规模
+//     uniform : 直方图是否均匀的标识符，有默认值true
+//     accumulate : 累积标识符，有默认值false, 若为true，直方图再分配阶段不会清零
+//
+//     在计算图像直方图的时候一般配合minMaxLoc()和normalize()函数, minMaxLoc()函数是用于寻找最值的函数，其定义如下：
+//     void cv::minMaxLoc(InputArray      src,
+//            double* minVal,
+//            double* maxVal = 0,
+//            Point * minLoc = 0,
+//            Point * maxLoc = 0,
+//            InputArray      mask = noArray()
+//     )
+//     
+//     参数解释
+//     .src: 输入的单通道数组
+//     .minVal : double类型指针，用于返回最小值的指针，如果不需要返回则设置为NULL
+//     .maxVal : double类型的指针，用于返回最大值指针，如果不需要返回则设置为NULL
+//     .minLoc : 返回最小值位置指针(2D的情况下)，如果不需要则设置为NULL
+//     .maxLoc : 返回最大位置指针(2D情况下)，如果不需要则设置为NULL
+//     .mask : 可选掩模板。
+
+
+//
+////   normalize()函数的作用是将一个数组的值归一化到指定的范围
+////   void cv::normalize(InputArray      src,           输入数组
+////   InputOutputArray                dst,           输出数组，与src有相同的尺寸
+////   double                       alpha = 1,       将数组归一化范围的最大值，有默认值1
+////   double                       beta = 0,        归一化的最小值，有默认值0
+////   int                         norm_type = NORM_L2,  归一化方式，有默认值NORM_L2
+////   int                         dtype = -1,       当该值取负数时，输出数组与src有相同类型
+////   InputArray                     mask = noArray()    可选的掩膜版
+////   )
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <math.h>
+using namespace std;
+using namespace cv;
+int main(int argc, char** argv) {
+	Mat src = imread("F:/PHOTO/test.png");
+	if (!src.data) {
+		printf("could not load image...\n");
+		return -1;
+	}
+	char INPUT_T[] = "input image";
+	char OUTPUT_T[] = "histogram demo";
+	imshow(INPUT_T, src);
+	// 分成3通道显示
+	vector<Mat> bgr_planes;
+	split(src, bgr_planes);
+	// 计算直方图
+	int histSize = 256;
+	float range[] = { 0, 256 };
+	//建立数组指针
+	const float* histRanges = { range };
+	//新建三个图像
+	Mat b_hist, g_hist, r_hist;
+	//计算直方图
+	calcHist(&bgr_planes[0], 1, 0, Mat(), b_hist, 1, &histSize, &histRanges, true, false);
+	calcHist(&bgr_planes[1], 1, 0, Mat(), g_hist, 1, &histSize, &histRanges, true, false);
+	calcHist(&bgr_planes[2], 1, 0, Mat(), r_hist, 1, &histSize, &histRanges, true, false);
+
+	// 将数值归一化
+	int hist_h = 400;
+	int hist_w = 512;
+	int bin_w = hist_w / histSize;
+
+	Mat histImage(hist_w, hist_h, CV_8UC3, Scalar(0, 0, 0));
+
+	normalize(b_hist, b_hist, 0, hist_h, NORM_MINMAX, -1, Mat());
+	normalize(g_hist, g_hist, 0, hist_h, NORM_MINMAX, -1, Mat());
+	normalize(r_hist, r_hist, 0, hist_h, NORM_MINMAX, -1, Mat());
+	// render histogram chart
+	for (int i = 1; i < histSize; i++) {
+		line(histImage, Point((i - 1) * bin_w, hist_h - cvRound(b_hist.at<float>(i - 1))),
+			Point((i)* bin_w, hist_h - cvRound(b_hist.at<float>(i))), Scalar(255, 0, 0), 2, LINE_AA);
+		line(histImage, Point((i - 1) * bin_w, hist_h - cvRound(g_hist.at<float>(i - 1))),
+			Point((i)* bin_w, hist_h - cvRound(g_hist.at<float>(i))), Scalar(0, 255, 0), 2, LINE_AA);
+		line(histImage, Point((i - 1) * bin_w, hist_h - cvRound(r_hist.at<float>(i - 1))),
+			Point((i)* bin_w, hist_h - cvRound(r_hist.at<float>(i))), Scalar(0, 0, 255), 2, LINE_AA);
+	}
+	imshow(OUTPUT_T, histImage);
+	waitKey(0);
+	return 0;
+}
