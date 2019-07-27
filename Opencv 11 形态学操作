@@ -1,0 +1,73 @@
+形态学操作
+	//开操作opening先腐蚀再膨胀，用来消除小物体，在纤细的连接处分离物体，并在平滑较大物体边界的同时，不明显改变其面积。
+	//开运算是通过先对图像腐蚀再膨胀实现
+	//dst = open(src, element) = dilate(erode(src, element))
+	//能够排除小团块物体，开运算删除了不能包含结构元素的对象区域，平滑了对象的轮廓，
+	//断开了狭窄的连接，去掉了细小的突出部分。
+	////闭操作closing
+	//闭运算在数学上是先膨胀再腐蚀的结果
+	//能够排除小型黑洞(黑色区域)，能够平滑对象的轮廓，但是与开运算不同的是闭运算一般会将狭窄的缺口
+	//连接起来形成细长的弯口，并填充比结构元素小的洞。//dst = close(src, element) = erode(dilate(src, element))
+	////形态学 梯度Morphological Gradient
+	//是膨胀图与腐蚀图之差，形态梯度操作能够保留物体的边缘轮廓
+	//dst = morph(src, element) = dilate(src, element) - erode(src, element)
+	////顶帽 top hat//顶帽操作是原图像与开运算结果图之差
+	//dst = tophat(src, element) = src - open(src, element)
+	//从原图中减去开运算后的图得到的效果图能够突出比原图轮廓周围的区域更明亮的区域，且这一操作与选择的核的大小有关。
+	//顶帽操作往往用来分离比邻近点亮一些的板块，在一幅图像具有大幅背景而微小物品比较有规律的情况下，可以使用顶帽运算进行背景提取。
+	////黑帽 black hat
+	//黑帽运算是闭运算结果图与原图像之差
+	//dst=blackhat(src,element)=close(src,element)-src
+	//黑帽运算后的效果图突出了比原图轮廓周围的区域更暗的区域，这一操作也与选择的核尺寸有关。
+	//黑帽运算用来分离比邻近点暗一些的斑块，效果图有着非常完美的轮廓。
+	//相关API//morphologyEx(src, dest, CV_MOP_BLACKHAT, kernel);
+	//参数1： Mat src  – 输入图像
+	//参数2： Mat dest  – 输出结果
+	//参数3：形态学操作选择：  CV_MOP_OPEN / CV_MOP_CLOSE / CV_MOP_GRADIENT / CV_MOP_TOPHAT / CV_MOP_BLACKHAT
+	//参数4：Mat kernel 结构元素
+	//参数5：int Iteration 迭代次数，默认是1
+#include<opencv2/opencv.hpp>
+#include<iostream>
+#include<math.h>
+using namespace cv;
+int main(int argc, char** aggv) {
+	Mat src, dst1, dst2, dst3, dst4, dst5;
+	src = imread("F:/PHOTO/test.png");
+	if (!src.data) {
+		printf( "could not load image.../n" );
+		return -1;
+	}       
+	namedWindow("input", CV_WINDOW_AUTOSIZE);
+	imshow("input", src);
+	//通过getStructuringElement 获得的图像文件，主要是为了获得核kernel，即模板，进行卷积计算。
+	Mat kernel = getStructuringElement(MORPH_RECT, Size(11, 11), Point(-1, -1));
+	//开操作开操作CV_MOP_OPEN，是通过先对图像腐蚀再膨胀实现。能够排除小白色物块
+	//开运算删除了不能包含结构元素的对象区域，平滑了对象的轮廓，断开了狭窄的连接，去掉了细小的突出部分。
+	morphologyEx(src, dst1, CV_MOP_OPEN, kernel);
+	namedWindow("open", CV_WINDOW_AUTOSIZE);
+	imshow("open", dst1);
+	//闭操作闭操作CV_MOP_CLOSE，闭运算在数学上是先膨胀再腐蚀的结果，能够排除小型黑洞(黑色区域)，
+	//能够平滑对象的轮廓，但是与开运算不同的是闭运算一般会将狭窄的缺口
+	//连接起来形成细长的弯口，并填充比结构元素小的洞。
+	morphologyEx(src, dst2, CV_MOP_CLOSE, kernel);
+	namedWindow("close", CV_WINDOW_AUTOSIZE); 
+	imshow("close", dst2);
+	//形态学梯度Morphological Gradient，是膨胀图与腐蚀图之差，形态梯度操作能够保留物体的边缘轮廓。
+	morphologyEx(src, dst3, CV_MOP_GRADIENT, kernel);
+	namedWindow("Gradient", CV_WINDOW_AUTOSIZE);
+	imshow("Gradient", dst3);
+	//顶帽操作是原图像与开运算结果图之差,得到的效果图能够突出比原图轮廓周围的区域更明亮的区域，且这一操作与选择的核的大小有关。
+	//顶帽操作往往用来分离比邻近点亮一些的板块，在一幅图像具有大幅背景而微小物品比较有规律的情况下，可以使用顶帽运算进行背景提取
+	morphologyEx(src, dst4, CV_MOP_TOPHAT, kernel);
+	namedWindow("tophat", CV_WINDOW_AUTOSIZE);
+	imshow("tophat", dst4);
+	//黑帽运算是闭运算结果图与原图像之差
+	// dst=blackhat(src,element)=close(src,element)-src
+	// 黑帽运算后的效果图突出了比原图轮廓周围的区域更暗的区域，这一操作也与选择的核尺寸有关。
+	//黑帽运算用来分离比邻近点暗一些的斑块，效果图有着非常完美的轮廓。
+	morphologyEx(src, dst5, CV_MOP_BLACKHAT, kernel); 
+	namedWindow("blackhat", CV_WINDOW_AUTOSIZE);
+	imshow("blackhat", dst5);
+	waitKey(0);
+	return 0;
+}
