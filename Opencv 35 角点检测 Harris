@@ -1,0 +1,121 @@
+
+//角点是图像很重要的特征，对图像图形的理解和分析有很重要的作用，在保留图像图形重要特征的同时，
+//可以有效减少信息的数据量，使信息的含量很高，有效提高计算速度，有利于图像的可靠匹配，使得实时处理成为可能。
+//在物体识别、图像匹配、视觉跟踪和三维重建等方面有很重要的应用。角点可以认为是窗口向任意方向的移动都导致图像灰度的明显变化。
+//
+//Harris角点检测是一种直接基于灰度图像的角点提取算法，稳定性高，尤其对L型角点检测精度高。
+//人眼对角点的识别通常是在一个局部的小区域或小窗口完成的。
+//在各个方向上移动这个特征的小窗口，窗口内区域的灰度发生了较大的变化，那么就认为在窗口内遇到了角点；
+//如果这个特定的窗口在图像各个方向上移动时，窗口内图像的灰度发生了很大变化，而在另一些方向上没有发生变化，那么窗口内的图像可能就是一条直线的线段；
+//
+//在图像处理和与计算机视觉领域，特征点（feature points） 被大量用于解决物体识别，图像识别、图像匹配、视觉跟踪、三维重建等一系列的问题。
+//我们不再观察整幅图，而是选择某些特殊的点，然后对他们进行局部有的放矢的分析。如果能检测到足够多的这种点，同时他们的区分度很高，
+//并且可以精确定位稳定的特征，那么这个方法就有使用价值。
+
+//图像特征类型可以被分为如下三种：
+//<1>边缘
+//<2>角点(感兴趣关键点)
+//< 3 > 斑点(Blobs)(感兴趣区域)
+//其中，角点是个很特殊的存在。他们在图像中可以轻易地定位，同时，他们在人造物体场景，比如门、窗、桌等出随处可见。
+//因为角点位于两条边缘的交点处，代表了两个边缘变化的方向上的点, 所以他们是可以精确定位的二维特征，甚至可以达到亚像素的精度。
+//且其图像梯度有很高的变化，这种变化是可以用来帮助检测角点的。需要注意的是，角点与位于相同强度区域上的点不同，与物体轮廓上的点也不同，因为轮廓点难以在相同的其他物体上精确定位。
+//二、角点算法的分类
+//在当前的图像处理领域，角点检测算法可归纳为三类：
+//<1>基于灰度图像的角点检测
+//<2>基于二值图像的角点检测
+//<3>基于轮廓曲线的角点检测
+//
+//而基于灰度图像的角点检测又可分为基于梯度、基于模板和基于模板梯度组合三类方法，其中基于模板的方法主要考虑像素领域点的灰度变化，即图像亮度的变化，
+//将与邻点亮度对比足够大的点定义为角点。常见的基于模板的角点检测算法有Kitchen - Rosenfeld角点检测算法，Harris角点检测算法、KLT角点检测算法及SUSAN角点检测算法。
+//和其他角点检测算法相比，SUSAN角点检测算法具有算法简单、位置准确、抗噪声能力强等特点。
+//
+//三、角点的定义
+//“如果某一点在任意方向的一个微小变动都会引起灰度很大的变化，那么我们就把它称之为角点”
+//角点检测(Corner Detection)是计算机视觉系统中用来获得图像特征的一种方法，广泛应用于运动检测、图像匹配、视频跟踪、三维建模和目标   识别等领域中。也称为特征点检测。
+//角点通常被定义为两条边的交点，更严格的说，角点的局部邻域应该具有两个不同区域的不同方向的边界。而实际应用中，大多数所谓的角点检测方法检测的是拥有特定特征的图像点，
+//而不仅仅是“角点”。这些特征点在图像中有具体的坐标，并具有某些数学特征，如局部最大或最小灰 度、某些梯度特征等。
+//现有的角点检测算法并不是都十分的健壮。很多方法都要求有大量的训练集和冗余数据来防止或减少错误特征的出现。另外，角点检测方法的一个很重要的评价标准是其对多幅图像中相同或相似特征的检测能力，
+//并且能够应对光照变化、图像旋转等图像变化。
+//在我们解决问题时，往往希望找到特征点，“特征”顾名思义，指能描述物体本质的东西，还有一种解释就是这个特征微小的变化都会对物体的某一属性产生重大的影响。而角点就是这样的特征。
+//观察日常生活中的“角落”就会发现，“角落”可以视为所有平面的交汇处，或者说是所有表面的发起处。假设我们要改变一个墙角的位置，那么由它而出发的平面势必都要有很大的变化。所以，这就引出了图像角点的定义。
+//我们知道，特征检测与匹配是计算机视觉应用中非常重要的一部分，这需要寻找图像之间的特征建立对应关系。图像中的点作为图像的特殊位置，是很常用的一类特征，
+//点的局部特征也可以叫做“关键特征点”(keypoint feature)，或“兴趣点”(interest point)，或“角点”(conrner)。
+//另外，关于角点的具体描述可以有几种：
+//一阶导数(即灰度的梯度)的局部最大所对应的像素点；
+//两条及两条以上边缘的交点；
+//图像中梯度值和梯度方向的变化速率都很高的点；
+//角点处的一阶导数最大，二阶导数为零，指示物体边缘变化不连续的方向。
+//
+//opencv提供cornerHarris()提取Harris角点。cornerHarris函数对每一个像素在blockSize x blockSize邻域内，
+//计算2 x 2梯度的协方差矩阵M(x, y), ，接着它计算输出局部最大值，即为角点。
+//void cv::cornerHarris(InputArray  src,
+//     OutputArray     dst,
+//     int     blockSize,
+//     int     ksize,
+//     double  k,
+//     int     borderType = BORDER_DEFAULT
+//)
+//
+//  src:输入图像，Mat类型即可，必须为单通道8 - bit或浮点型图像
+//     dst : 角点检测的输出结果，与原图像有相同的尺寸和类型
+//     blockSize : 邻域大小，可以查看cornerEigenValsAndVecs()得到更多关于blockSize的信息
+//     ksize : 表示Sobel()算子孔径大小
+//     * *k : **Harris参数，用于判断是否为角点
+//     borderType : 为图像边界模式，有默认值BORDER_DEFAULT
+//
+#include<opencv2/opencv.hpp>
+#include<iostream>
+#include<math.h>
+using namespace cv;
+using namespace std;
+//定义全局变量
+Mat srcImage, grayImage;
+int thresh = 100;
+const int threshMaxValue = 255;
+RNG rng(12345);
+//声明回调函数
+void cornerHarris_detect(int, void*);
+int main(int argc, char** argv) {
+	srcImage = imread("F:/PHOTO/gezi.jpg");
+	//判断文件是否读取成功
+	if (srcImage.empty()) {
+		cout << "图像加载失败！";
+		return -1;
+	}
+	else {
+		cout << "图像加载成功。。。/n" << endl << endl;
+	}
+	//转灰度
+	cvtColor(srcImage, grayImage, CV_BGR2GRAY);
+	cornerHarris_detect(0, 0);
+	createTrackbar("Threshold:","corner_grayimage",&thresh,threshMaxValue,cornerHarris_detect);
+
+	waitKey(0);
+	return 0;
+}
+void cornerHarris_detect(int, void*) {
+	Mat dstImage, dst_norm_image, dst_norm_scaled;
+	dstImage = Mat::zeros(srcImage.size(),CV_32FC1);
+	//检测器参数设置
+	int blockSize = 2;     //邻域尺寸大小
+	int apertureSize = 3;   //sobel算子孔径大小
+	double k = 0.04;       //Harris 参数 用于判断是否为角点
+	//角点检测
+	cornerHarris(grayImage,dstImage,blockSize,apertureSize,k,BORDER_DEFAULT);
+	//normalize 归一化处理
+	normalize(dstImage,dst_norm_image,0,255,NORM_MINMAX,-1,Mat());
+	//将图像强转为8位无符号数
+	convertScaleAbs(dst_norm_image,dst_norm_scaled);
+	//绘制角点
+	for (int row = 0; row < dst_norm_image.rows; row++) {
+		for (int col = 0; col < dst_norm_image.cols; col++) {
+			if (static_cast<int>(dst_norm_image.at<float>(row, col) > thresh)) {
+				circle(dst_norm_image,Point(row,col),5,Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uni                                          form(0,255)),2,8,0);
+				circle(grayImage, Point(row, col), 5, Scalar(rng.uniform(0, 255), rng.uniform(0, 255),                                              rng.uniform(0, 255)), 2, 8, 0);
+			}
+		}
+	}
+	imshow("cornerHarris",dst_norm_scaled);
+	imshow("corner_grayimage", grayImage);
+	imshow("dst_norm_image",dst_norm_image);
+}
