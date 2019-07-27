@@ -1,0 +1,47 @@
+切记！
+
+一、
+全局变量 要慎用。
+比如早opencv 图像处理中，绘制矩形框，如果对矩形框的定义contours 或者是处理后形成的 tempBoundRect ,
+定义为全局变量，那么他们矩形框会一直叠加，更新了图片，更新了视频帧，矩形框还是会存在，并且会不断的叠加。
+
+
+二、
+inshow 语句一定要在要在绘制图形 代码的下面！！
+在绘制矩形框、轮廓图时候不要在 原图 ，即imread读取的图上绘制，容易绘制不出来！！
+要自己重新克隆一份图像，在上面绘制。
+
+三、
+第一种操作像素的方法是使用“at”，如一幅3通道的彩色图像image的第i行j列的B、G、R分量分别表示为：
+image.at<Vec3b>(i,j)[0];
+image.at<Vec3b>(i,j)[1];
+image.at<Vec3b>(i,j)[2];
+
+而对于单通道的灰度图像就简单很多了：
+
+image.at<uchar>(i,j); 
+
+这里要注意at中(i,j)的顺序表示的是第i行第j列，
+
+跟Point(i,j)和Rect(i,j)中表示第j行第i列是相反的，
+如果把这个搞混了，很容易导致内存异常，还不容易发现错误。
+
+四、
+在使用MFC编程过程中，对于定时器的使用。
+第一步： 按钮 在按钮中启动定时器例如在OnBnClickedopencamera()中设置启动定时器 SetTimer(1, 30, NULL);。
+第二步：在定时器处理函数OnTimer中 编写你要根据定时器循环 所有处理问题的代码，在结尾要加入CDialogEx::OnTimer(nIDEvent);。
+第三步：要在其他按钮中关闭定时器，例如在OnBnClickedclosecamera中 按钮关闭 KillTimer(1); 
+
+五、
+
+mfc +  opencv  报错
+
+_pFirstBlock == pHead
+很大一部分原因是由于 设置问题
+
+解决方案 --右键属性--配置属性--常规--MFC的使用--在共享DLL中使用MFC。
+                                  
+C/C++--代码生成--运行库--多线程调试DLL(/MDd)
+
+
+ 
