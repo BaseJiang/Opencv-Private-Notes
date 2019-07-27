@@ -1,0 +1,99 @@
+//概念介绍 - 点多边形测试 - 测试一个点是否在给定的多边形内部，边缘或者外部
+//API介绍 cv::pointPolygonTest
+//pointPolygonTest(
+//     InputArray  contour,// 输入的轮廓
+//     Point2f  pt, // 测试点
+//     bool  measureDist // 是否返回距离值，如果是false，1表示在内面，0表示在边界上，-1表示在外部，true返回实际距离
+//)
+//
+//返回数据是double类型
+//构建一张400x400大小的图片， Mat::Zero(400, 400, CV_8UC1)
+//画上一个六边形的闭合区域line
+//发现轮廓
+//对图像中所有像素点做点 多边形测试，得到距离，归一化后显示。
+//要在轮廓基础上
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <math.h>
+using namespace std;
+using namespace cv;
+int main(int argc, char** argv) {
+	const int r = 100;
+	Mat src = Mat::zeros(r * 4, r * 4, CV_8UC1);
+	//static_cast:类型强转
+	//新建一个多边形图像
+	vector<Point2f> vert(6);
+	vert[0] = Point(3 * r / 2, static_cast<int>(1.34 * r));
+	vert[1] = Point(1 * r, 2 * r);
+	vert[2] = Point(3 * r / 2, static_cast<int>(2.866 * r));
+	vert[3] = Point(5 * r / 2, static_cast<int>(2.866 * r));
+	vert[4] = Point(3 * r, 2 * r);
+	vert[5] = Point(5 * r / 2, static_cast<int>(1.34 * r));
+	//连线成多边形
+	for (int i = 0; i < 6; i++) {
+		line(src, vert[i], vert[(i + 1) % 6], Scalar(255), 3, 8, 0);
+	}
+	//上面绘制出了多边形的图像
+	//获取轮廓
+	vector<vector<Point>> contours;
+	//层次
+	vector<Vec4i> hierarchy;
+	Mat csrc;
+	//复制一个src为csrc
+	src.copyTo(csrc);
+	//发现轮廓 参数 输入、contours、hierarchy、mode、method、offist(偏移)
+	findContours(csrc, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE, Point(0, 0));
+	Mat raw_dist = Mat::zeros(csrc.size(),CV_32FC1);
+	//对raw——dist的每个像素点进行测试
+	for (int row = 0; row < raw_dist.rows; row++) {
+		for (int col = 0; col < raw_dist.cols; col++) {
+			//一个轮廓 contours[0]      
+			double distance = pointPolygonTest(contours[0], Point2f(static_cast<float>(col),static_cast<float>( row)),true);
+			//将距离数据 放入raw_dist 图中，按照每个像素的位置排放
+			raw_dist.at<float>(row, col) = static_cast<float>(distance);
+		}
+	}
+	//寻找最大最小值。raw_dist 是距离图片
+	double minValue, maxValue;
+	//void cv::minMaxLoc(InputArray      src,
+	//     double* minVal,
+	//     double* maxVal = 0,
+	//     Point * minLoc = 0,
+	//     Point * maxLoc = 0,
+	//     InputArray      mask = noArray()
+	//)
+	//参数解释：
+	//InputArray src : 输入的单通道数组
+	// double minVal : **double类型指针，返回最小值，如果没有定义返回NULL
+	//double* maxVal : 同上，返回最大值
+	//Point * minLoc = 0 : Point类型的指针，在二维图像中返回最小值的位置坐标，如果没有定义返回NULL
+	// Point maxLoc = 0 : **Point同上，返回最大位置//坐标
+	//InputArray mask = noArray() : 可选掩膜板
+
+	minMaxLoc(raw_dist, &minValue, &maxValue, 0, 0, Mat());
+	//绘制出来的图，要三通道rgb
+	Mat drawImg = Mat::zeros(src.size(), CV_8UC3);
+	//对像素点获取值
+	for (int row = 0; row < drawImg.rows; row++) {
+		for (int col = 0; col < drawImg.cols; col++) {
+			float dist = raw_dist.at<float>(row, col);
+			if (dist > 0) {
+				//在内部  abs 取绝对值    0   1    2  bgr
+				drawImg.at<Vec3b>(row, col)[0] = (uchar)(abs(1.0 - (dist / maxValue)) * 255);
+			}
+			else if (dist < 0) {
+				//在外部
+				drawImg.at<Vec3b>(row, col)[2] = (uchar)(abs(1.0 - (dist / minValue)) * 255);
+			}
+			else {
+				drawImg.at<Vec3b>(row, col)[0] = (uchar)(abs(255 - dist));
+				drawImg.at<Vec3b>(row, col)[1] = (uchar)(abs(255 - dist));
+				drawImg.at<Vec3b>(row, col)[2] = (uchar)(abs(255 - dist));
+			}
+		}
+	}
+	imshow("input image", src);
+	imshow("point polygon test demo", drawImg);
+	waitKey(0);
+	return 0;
+}
