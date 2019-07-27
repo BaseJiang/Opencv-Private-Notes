@@ -1,0 +1,100 @@
+//凸包。在一个多变形边缘或者内部任意两个点的连线都包含在多边形边界或者内部。
+//正式定义：包含点集合S中所有点的最小凸多边形称为凸包。
+//Graham扫描算法
+//首先选择Y方向最低的点作为起始点p0
+//从p0开始极坐标扫描，依次添加p1….pn（排序顺序是根据极坐标的角度大小，逆时针方向）
+//对每个点pi来说，如果添加pi点到凸包中导致一个左转向（逆时针方法）则添加该点到凸包，
+//反之如果导致一个右转向（顺时针方向）从凸包中删除该点。
+//每个凸包也是一个个点用 vector<vector<Point>>表示
+//opencv提供了convexHull()函数来查找图像中物体的凸包，起函数定义如下：
+////void cv::convexHull(InputArray  points, hull,       输入的二维点集，Mat类型数据
+//     OutputArray                        输出参数，用于输出函数调用后找到的凸包   
+//     bool    clockwise = false,            操作方向，当标识符为真时，输出凸包为顺时针方向，否则为逆时针方向。
+//     bool    returnPoints = true           操作标识符，默认值为true，此时返回各凸包的各个点，否则返回凸包各点的指数，
+// 当输出数组时std::vector时，此标识被忽略。
+//)
+//步骤
+//首先把图像从RGB转为灰度
+//然后再转为二值图像
+//在通过发现轮廓，得到候选点
+//凸包API调用
+//绘制显示。
+
+#include<opencv2/opencv.hpp>
+#include<iostream>
+#include<math.h>
+using namespace cv;
+using namespace std;
+Mat src, gray,dst1, dst2, dst3, dst4;
+int threshold_value = 100;
+int threshold_max = 255;
+const char* input = "input image";
+const char* mohuimg = "mohuimage";
+void Callback(int, void*);
+RNG rng(12345);
+int main(int agrc, char** argv) {  
+	src = imread("F:/PHOTO/coins.jpg");  
+	if (src.empty()) {       
+		printf("can not find the picture../n");       
+		return -1;     
+	}     
+	imshow(input,src);   
+	//转灰度图    
+	cvtColor(src,gray,CV_BGR2GRAY);   
+	//模糊降噪    
+	blur(gray,dst1,Size(3,3),Point(-1,-1),BORDER_DEFAULT);  
+	imshow(mohuimg,dst1);  
+	//回调函数    
+	Callback(0,0);    
+	//创建trackbar  参数; trackbar 自命名、trackbar要放在窗口的名字、阈值、回调函数名；   
+	//注意;前两个参数要以字符串的方式，当前阈值要加地支付&、回调函数只要名字就行   
+	createTrackbar("mytrackbar1", "lunkuotu",&threshold_value,threshold_max,Callback);    
+	createTrackbar("mytrackbar2", "tubaotu", &threshold_value, threshold_max, Callback);    
+	waitKey(0);       return 0;}void Callback(int, void*) {   
+		vector<vector<Point>> contours;    
+		vector<Vec4i> hierarchy;    
+		//阈值操作  转为二值图  
+		threshold(dst1,dst2,threshold_value,threshold_max,THRESH_BINARY);    
+		//输出二值图     
+		imshow("erzhitu",dst2);     
+		//寻找轮廓     
+		findContours(dst2,contours,hierarchy,RETR_EXTERNAL,CHAIN_APPROX_SIMPLE,Point(0,0));    
+		//定义凸点，初始化
+		vector<vector<Point>> convexs(contours.size());     
+		vector<Vec4i> empty(0);     
+		//循环获得凸包点个数   
+		for (int i = 0; i < contours.size(); i++) {    
+			//输入、输出、逆时针、true      
+			convexHull(contours[i],convexs[i],false,true);   
+		}   
+		//将获得的凸点绘制到rgb图像上成凸包    
+		//用来输出轮廓图      
+		dst3 = Mat::zeros(src.size(), CV_8UC3);     
+		//用来输出凸包图    
+		dst4 = Mat::zeros(src.size(), CV_8UC3);   
+		for (int k = 0; k <contours.size(); k++)   
+		{          
+			Scalar color = Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
+			//   参数解释
+			//    image :输出图像，Mat类型即可
+			//     contours : 全部发现的轮廓对象,使用findContours检测到的轮廓数据，每个轮廓以点向量的形式存储，point类型的vector
+			//     contourIdx : 绘制轮廓的只是变量，如果为负值则绘制所有输入轮廓
+			//     color : 轮廓颜色
+			//     thickness : 绘制轮廓所用线条粗细度，如果值为负值，则在轮廓内部绘制
+			//     lineTpye : 线条类型，有默认值LINE_8，有如下可选类型
+			//     hierarchy : 可选层次结构信息,拓扑结构图
+			//     maxLevel : 用于绘制轮廓的最大等级, 最大层数， 0只绘制当前的，1表示绘制绘制当前及其内嵌的轮廓
+			//     offset : 可选轮廓便宜参数，用制定偏移量offset = (dx, dy)给出绘制轮廓的偏移量             
+			//画轮廓             
+			//绘制到的目标图像、轮廓对象、角标、颜色、线宽、线形、层级、只绘制当前、偏移量        
+			drawContours(dst3,contours,k,color,2,8,hierarchy,0,Point(0,0));           
+			//画凸包图              
+
+			//输出、凸包点、角标、颜色、线宽、线形、层级、只绘制当前、偏移量         
+			//也相当于画轮廓        
+			drawContours(dst4,convexs,k,color,2,8,empty,0,Point(0,0));     
+		}     
+		imshow("lunkuotu", dst3);    
+		imshow("tubaotu", dst4);  
+		return;
+	}
