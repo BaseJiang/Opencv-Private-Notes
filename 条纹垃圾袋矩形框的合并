@@ -1,0 +1,292 @@
+#include "stdafx.h"
+#include <iostream>
+#include <opencv2/opencv.hpp>
+#include <Windows.h>
+#include <iomanip>
+#include <fstream>
+
+#define DISTANCE_SIZE 30
+
+using namespace std;
+using namespace cv;
+
+void image_Preprocessing(int,void*);
+void draw_Rectangle(int,void*);
+void TidyProposals(std::vector<cv::Rect> &proposals, int sizenum);
+void TidyProposals(std::vector<cv::Rect> &proposals, int sizenum);
+int CalDistance(cv::Rect r1, cv::Rect r2);
+bool isIntersectingR(const cv::Rect a, const cv::Rect b);
+Rect MergeRect(cv::Rect a, cv::Rect b);
+bool isRectInRect(cv::Rect r1, cv::Rect r2);
+static int is_rect_intersect(const int x[], const int y[]);
+void DeleteFromProposals(std::vector<cv::Rect> &proposals, cv::Rect r);
+bool isPointInRectCv(int x, int y, cv::Rect rect);
+//将输入图片的规格限在 ：480行，960列
+#define HEIGHT 480
+#define WIDTH 640
+//全局变量 全局可以访问
+Mat srcImg,hsvImg,OriginalImage,hsvThresholdImg,cutImg,openImg,closeImg,mediaBlurImg,srcCopy,finalRectImg;
+vector<Rect> tempBoundRect;
+ // 划分HIST的初始个数，越高越精确，若使用trckbar功能，需要把histSize设置为合适的大小（例如50）
+int histSize =256;
+//灰度范围
+float ranges[]={0,255};
+//灰度范围的指针
+const float *H_ranges[]={ranges};
+//【主函数】
+int main(int argc, char** argv) {
+       OriginalImage = imread("F:\\PHOTO\\Striped_plastic_bag\\7.jpg");
+       if (OriginalImage.empty()) {
+              printf("can not load the image..../n");
+              return -1;
+       }
+       imshow("input_Img", OriginalImage);
+       //将输入图片大小调整为640*480  size(里面是 X,Y（即宽、高）)
+       resize(OriginalImage,srcImg,Size(WIDTH,HEIGHT));
+       imshow("大小调整为640*480后的图像", srcImg);
+          srcCopy=srcImg.clone();
+          finalRectImg=srcImg.clone();
+       //第一步：图片预处理函数
+       image_Preprocessing(0,0);
+          //第二步：找出轮廓 画出所有矩形框
+       draw_Rectangle(0,0);
+          //第三步：合并相应的矩形框
+      TidyProposals(tempBoundRect, DISTANCE_SIZE);
+     
+       waitKey(0);
+       return 0;
+       }
+       
+//图像预处理操作函数
+void image_Preprocessing(int,void*){
+       //先转为hsv图像格式
+       cvtColor(srcImg,hsvImg,CV_BGR2HSV);
+       //namedWindow("HSVImg",CV_WINDOW_NORMAL);
+       imshow("HSVImg", hsvImg);
+       // 设置垃圾袋 hsv 数值的范围
+       int LowH=80;
+       int HihgH=100;
+       int LowS=60;
+       int HighS=255;
+       int LowV=100;
+       int HighV=255;
+       inRange(hsvImg,Scalar(LowH,LowS,LowV),Scalar(HihgH,HighS,HighV),hsvThresholdImg);
+       imshow("hsvThresholdImg", hsvThresholdImg);
+       //开操作 (去除一些噪点)
+       Mat element = getStructuringElement(MORPH_RECT, Size(5, 5),Point(-1,-1));
+       morphologyEx(hsvThresholdImg,openImg, MORPH_OPEN, element);
+       //闭操作 (连接一些连通域)
+       morphologyEx(openImg, closeImg, MORPH_CLOSE, element);
+       //中值滤波 消除椒盐噪声 保护边缘信息
+       medianBlur(closeImg, mediaBlurImg, 11);
+       imshow("medianBlur",mediaBlurImg);
+     
+}
+//画轮廓、外接矩形框、求矩形面积
+void draw_Rectangle(int,void*){
+       vector<vector<Point>> contours;
+       //拓扑结构
+       vector<Vec4i> hierarchy;
+       //找轮廓、检测到的轮廓（contours），都是以点向量的形式进行存储即使用point类型的vector表示
+       findContours(closeImg, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+       //定义一个过滤后的矩形容器向量,值为空,用以存放符合要求的矩形框
+       vector<vector<Point>> contours_poly(contours.size());
+       vector<Rect>boundRect(contours.size());
+       Mat figureImg,rectImg;
+   
+       Scalar color = Scalar(0, 0, 255);
+       for (int i = 0; i < contours.size(); i++) {
+             //使用多边形逼近检测到的图像轮廓来寻找包围轮廓的矩形,contours_poly ：拟合点的集合
+              approxPolyDP(contours[i], contours_poly[i], 3, true);
+             //画轮廓
+             /* drawContours(srcImg, contours, i, color, 1, 8, hierarchy, 0, Point(0, 0));*/
+             //使用boundingRect()函数计算包围轮廓的矩形cv::boundingRect(InputArray points)返回一个左上角的坐标 以及矩形的长和宽
+             boundRect[i]=boundingRect(Mat(contours_poly[i]));
+             //把符合要求的框，存入集合tempBoundRect
+             tempBoundRect.push_back(boundRect[i]);
+             //循环取出 符合要求的矩形框，并计算相应的宽高比
+              for(int t=0;t<tempBoundRect.size();t++){
+              //符合要求的框才画矩形
+                 rectangle(srcCopy,tempBoundRect[t],color,1.5,8,0); 
+                 }             
+         }
+              imshow("srcCopy", srcCopy);
+}
+/*******************************************
+param:
+proposals 包括所有区域的vector
+sizenum 垃圾袋面积矩形框合并框距离参数
+brief：
+对结果中的标记区域进行整理
+合并所有距离较近的区域
+多次迭代直到proposals中的个数不变
+*******************************************/
+void TidyProposals(std::vector<cv::Rect> &proposals, int sizenum)
+{
+       int size, lastsize = 0;
+       size = proposals.size(); //向量(矩形框)个数
+                                                 //直到两次处理proposals中的元素个数不变
+       while (size != lastsize)
+       {
+              auto temp = proposals;  //建立一个副本（temp也是一个集合）
+              //auto 自动根据后面的内容 推断前面的类型
+              for (auto &rect : temp)
+              {
+                     //把temp赋值给rect
+                     //proposals中的元素是一个个的rect矩形框
+                     for (auto iter = proposals.begin(); iter != proposals.end();)
+                     {
+                           //新建的副本是 proposals 集合的第一个矩形框的话，迭代器加1
+                           if (*iter == rect)
+                                  ++iter;
+                           //如果temp取出并赋值给变量rect 的 不是第一个矩形框，他们框之间的距离小于sizenum
+                           else if (CalDistance(*iter, rect) <= sizenum)
+                           {
+                                  //则求两个矩形的外接矩形
+                                  *iter = MergeRect(*iter, rect);
+                                  //为什么是非,如果rect 在iter 大的外接矩形内部 ，则将rect从矩形框集合中删除
+                                  //if(为true时候才执行)
+                                  if (!isRectInRect(*iter, rect))
+                                         DeleteFromProposals(proposals, rect);//并删除proposals中与rect相等的元素
+                                  break;
+                           }
+                           else
+                                  ++iter;
+                     }
+              }
+              lastsize = size;
+              size = proposals.size();
+       }
+       //只有一个矩形框了
+       //cout<<proposals.size()<<endl;
+       //再画矩形框
+         for(int m=0;m<proposals.size();m++){
+              //符合要求的框才画矩形
+                 rectangle(finalRectImg,proposals[m],Scalar(0, 0, 255),1.5,8,0); 
+                 }      
+              imshow("finalRectImg", finalRectImg);
+       return;
+}
+/******************************************
+brief:
+计算两个矩形之间的距离
+若两个矩形相交，则返回0
+先计算x方向最小距离dx
+再计算y方向最小距离dy
+d = sqrt（dx*dx + dy*dy）
+******************************************/
+int CalDistance(cv::Rect r1, cv::Rect r2)
+{
+       //如果两个矩形框相交，返回0
+       if (isIntersectingR(r1, r2))
+              return 0;
+       //先计算外接矩形
+       Rect r3 = MergeRect(r1, r2);
+       int dx = 0, dy = 0;
+       //纵向不重叠,计算纵向最小距离
+       if (r3.height >= r1.height + r2.height)
+       {
+              dy = min(min(abs(r1.y - r2.y), abs(r1.y - r2.y - r2.height)),min(abs(r1.y + r1.height - r2.y), abs(r1.y + r1.height - r2.y - r2.height)));
+       }
+       //横向不重叠，计算横向最小距离
+       if (r3.width >= r1.width + r2.width)
+       {
+              dx = min(min(abs(r1.x - r2.x), abs(r1.x - r2.x - r2.width)),min(abs(r1.x + r1.width - r2.x), abs(r1.x + r1.width - r2.x - r2.width)));
+       }
+       //计算综合最小距离
+       int d = sqrt(dy*dy + dx * dx);
+       return d;
+}
+//两个矩形是否有交集
+bool isIntersectingR(const cv::Rect a, const cv::Rect b)
+{
+       //判断一个矩形（四个顶点）中是否有在另一个矩形b内
+       //这是矩形a 的四个顶点
+       int x[4], y[4];
+       x[0] = a.x; y[0] = a.y;
+       x[1] = a.x; y[1] = a.y + a.height;
+       x[2] = a.x + a.width; y[2] = a.y;
+       x[3] = a.x + a.width; y[3] = a.y + a.height;
+       for (int i = 0; i<4; i++)
+       {
+              //循环判断点a是否在矩形框b内
+              if (true == isPointInRectCv(x[i], y[i], b))
+                     return true;
+       }
+       //判断一个矩形b（四个顶点）中是否有在另一个矩形a内
+       //这是矩形b 的四个顶点
+       int x1[4], y1[4];
+       x1[0] = b.x; y1[0] = b.y;
+       x1[1] = b.x; y1[1] = b.y + b.height;
+       x1[2] = b.x + b.width; y1[2] = b.y;
+       x1[3] = b.x + b.width; y1[3] = b.y + b.height;
+       for (int i = 0; i<4; i++)
+       {
+              //循环判断点b是否在矩形框a内
+              if (true == isPointInRectCv(x1[i], y1[i], a))
+                     return true;
+       }
+       return false;
+}
+//求两个矩形的外接矩形
+cv::Rect MergeRect(cv::Rect a, cv::Rect b)
+{
+       cv::Rect c;
+       c.x = min(a.x, b.x);
+       c.y = min(a.y, b.y);
+       int t = max(a.x + a.width, b.x + b.width);
+       c.width = t - c.x;
+       t = max(a.y + a.height, b.y + b.height);
+       c.height = t - c.y;
+       //c.area() = a.area() + b.area();  //面积
+       //printf("========> c.area() = %d\n", c.area());
+       return c;
+}
+//区域是否在另一个区域内部
+//判断矩形框是否在另一个矩形框内部
+bool isRectInRect(cv::Rect r1, cv::Rect r2)
+{
+       //判断矩形框的四个顶点是否同时在另一个矩形框的内部
+       if (isPointInRectCv(r1.x, r1.y, r2)
+              && isPointInRectCv(r1.x + r1.width, r1.y + r1.height, r2)
+              && isPointInRectCv(r1.x, r1.y + r1.height, r2)
+              && isPointInRectCv(r1.x + r1.width, r1.y, r2))
+       {
+              return true;
+       }
+       else
+              return false;
+}
+//判断两个矩形框是否相交
+static int is_rect_intersect(const int x[], const int y[])
+{
+       int zx = abs(x[0] + x[1] - x[2] - x[3]);
+       int x_x = abs(x[0] - x[1]) + abs(x[2] - x[3]);
+       int zy = abs(y[0] + y[1] - y[2] - y[3]);
+       int y_y = abs(y[0] - y[1]) + abs(y[2] - y[3]);
+       if (zx <= x_x && zy <= y_y)
+              return 1;   //相交
+       else
+              return 0;   //不相交
+}
+//删除指定大小的rect
+void DeleteFromProposals(std::vector<cv::Rect> &proposals, cv::Rect r)
+{
+       for (auto iter = proposals.begin(); iter != proposals.end();)
+       {
+              if (*iter == r)
+                     iter = proposals.erase(iter);
+              else
+                     ++iter;
+       }
+       return;
+}
+//点是否在区域内部
+bool isPointInRectCv(int x, int y, cv::Rect rect)
+{
+       if (x >= rect.x && x <= (rect.x + rect.width)
+              && y >= rect.y && y <= (rect.y + rect.height))
+              return true;
+       else
+              return false;
+}
