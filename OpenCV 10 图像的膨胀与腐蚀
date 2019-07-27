@@ -1,0 +1,65 @@
+    膨胀、腐蚀 是对白色部分（高亮部分）进行的操作，不是对黑色部分进行操作。
+	膨胀：对图像中白色高亮部分及逆行膨胀，类似于领域扩张，效果图比原图拥有更大的高亮区域；
+	腐蚀：对图像中白色高亮部分进行腐蚀，类似于领域被蚕食，效果图比原图拥有更少的高亮区域。
+	课程10 图像的膨胀与腐蚀操作//
+	腐蚀和膨胀是对二维图片的进行操作的形态学运算，腐蚀(Erosion)和膨胀(Dilation)是最基本的形态学操作，他们运用主要有：
+	消除噪声、分割(ioslate)独立的图像元素、连接(join)相邻的元素、寻找图像中的明显的极大值区域或极小值区域、求图像的梯度
+	1.膨胀  白色扩大、膨胀(dilate)就是求局部最大值的操作，从数学的角度来讲膨胀或者腐蚀就是将一幅二维图像或图像的一部分(称之为A)与一个模板也就是核(称为B)
+	进行卷积运算的过程。核可以是任何形状和大小，与之前介绍的模板一样，核有一个可定义的锚点。
+	膨胀操作是将图像A与任意形状的内核B(通常为正方形或者圆形)进行卷积，
+	内核B中可定义的锚点通称定义为内核中心点
+	进行膨胀操作时，将内核B在图像A上进行滑动操作，将内核B覆盖的区域的最大像素值提取并提到内核B锚点位置的像素。
+	上述操作将会导致图像中的亮区开始扩展，因为白色的像素值要远远大于黑色的像素值。
+	void dilate(InputArray src, OutputArray dst, InputArray kernel, Point anchor = Point(-1, -1), int iterations = 1, int borderType = BORDER_CONSTANT, const Scalar & borderValue = morphologyDefaultBorderValue())
+	参数解释如下：
+	参数1：InputArray src : 输入图像，但是图像深度应为CV_8U、CV_16U、CV_16s、CV_32F或CV_64F其中之一。
+	参数2：OutputArray dst : 输出图像，与原图像有相同的尺寸和类型。
+	参数3：InpurArray kernel : 用于膨胀操作的kernel，当参数 = Mat()即NULL时，kernel是一个锚点位于中心的3x3模板。
+	可通过getStructuringElement函数来制定kernel的形状和尺寸，其函数原型如下：
+	Mat cv::getStructuringElement(int shape, Size ksize,Point anchor = Point(-1, -1))
+	参数1：int shape : kernel的形状，分别是矩形(MORPH_RECT)、交叉形(MORPH_CROSS)、椭圆形(MORPH_ELLIPSE)
+	参数2：Size ksize : kernel的尺寸//参数3：Point anchor = Point(-1, -1) : 锚点位置
+	一般在调用erode以及dilate函数之前需要定义一个Mat类型的变量来获得getStructuringElement()函数的返回值，对于锚点如果没有特殊要求可使用默认值
+	int iterations = 1 : 迭代使用膨胀的次数//int borderType = BORDER_CONSTANT : 用于推断图像外部像素的某种边界模式，其有默认值BORDER_CONSTANT const Scalar & borderValue = morphologyDefaultBorderValue() : 边界为常数时的边界值，有默认值morphologyDefaultBorderValue()，一般不用设置
+	2.腐蚀 黑色加粗
+	腐蚀在形态学操作家族里是膨胀操作的孪生姐妹，它是提取内核覆盖下的像素最小值，进行腐蚀操作时，将内核窗口在图像A上进行滑动，
+	将内核B覆盖的区域最小像素值提取并代替锚点位置的像素值
+	腐蚀操作将会导致图像中像素值较低的元素进行扩展，造成黑色部分加粗。
+	void cv::erode(InputArray src,
+	OutputArray dst,
+	InputArray kernel,
+	Point anchor = Point(-1, -1),
+	int iterations = 1,
+	int borderType = BORDER_CONSTANT,
+	const Scalar & borderValue = morphologyDefaultBorderValue()
+	)
+#include<opencv2/opencv.hpp>
+#include<iostream>void CallBackDemo();
+	using namespace cv;
+Mat src, dst1, dst2;
+int element_size = 3;
+int max_size = 21;
+int main(int argc, char** argv) {       
+	src = imread("F:/PHOTO/LinuxLogo.jpg");       
+	if (!src.data) {
+		printf("could not load image..../n");
+		return -1;       }       
+	CallBackDemo();
+	namedWindow("inputimage", CV_WINDOW_AUTOSIZE);
+	imshow("inputimage", src);
+	namedWindow("dialateimage", CV_WINDOW_AUTOSIZE);
+	imshow("dialateimage", dst1);
+	namedWindow("erodeimage", CV_WINDOW_AUTOSIZE);
+	imshow("erodeimage", dst2);
+	waitKey(0);
+	return 0;
+}
+void CallBackDemo() {
+	int s = element_size * 2 + 1;
+	//通过getStructuringElement 获得的图像文件，主要是为了获得核kernel，即模板，作为膨胀与腐蚀的参数，进行卷积计算。
+	Mat structureElement = getStructuringElement(MORPH_RECT, Size(s, s), Point(-1, -1));
+	//膨胀参数 第三个参数kernel由 getStructuringElement()函数 获得的对象填充。其他参数仍需自行填充
+	dilate(src, dst1, structureElement, Point(-1, -1), 1, 0);
+	//腐蚀参数 第三个参数kernel由 getStructuringElement()函数 获得的对象填充。其他参数仍需自行填充
+	erode(src, dst2, structureElement,Point(-1,-1),1,0);
+}
