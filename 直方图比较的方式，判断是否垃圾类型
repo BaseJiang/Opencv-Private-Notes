@@ -1,0 +1,270 @@
+// zhifanngtupipeilajileixing.cpp : 定义控制台应用程序的入口点。
+//
+
+#include "stdafx.h"
+#include<iostream>
+#include<opencv2/opencv.hpp>
+#include<windows.h>
+#include<fstream>
+
+#define HEIGHT 480
+#define WIDTH 640
+#define RECT_AERA 2000//过滤掉面积2000以下的矩形框
+
+using namespace std;
+using namespace cv;
+
+void sample_Processing(int,void*);
+void Image_Processing(int,void*);
+void histogram_Comparison(int,void*);
+void type_Judgment(int,void*);
+
+
+
+//HSV范围区间设置
+int LowH=80;
+int HihgH=100;
+int LowS=60;
+int HighS=255;
+int LowV=100;
+int HighV=255;
+
+//测试图像，矩形框的宽高比数值
+double width_height_percent ; 
+//直方图比较 得出的相似度数值
+double Similarity;
+
+
+//用于对比的，厨余样本图像 相关全局变量
+Mat sampleImg,sample_hsv_Img,sample_Threshold_Img,sample_openImg,sample_closeImg,
+	sample_mediaBlurImg,copy_sampleImg,sample_cutImg,sample_cutImg_hsv,sample_hist;
+
+
+//用于测试的，输入图像 相关全局变量
+Mat OriginalImage,srcImg,src_hsv_Img,src_ThresholdImg,src_openImg,src_closeImg,
+	src_mediaBlurImg,copy_srcImg,src_cutImg,src_cutImg_hsv,src_hist;
+
+
+//【主函数】
+int _tmain(int argc, _TCHAR* argv[])
+{
+	//用于比对的厨余样本图像
+	sampleImg=imread("F://PHOTO//kitchenWaste//sample_chuyu.jpg");
+	//用于判断类型的 测试图像
+	//F://PHOTO//kitchenWaste//normal//normal9.jpg
+	//F://PHOTO//kitchenWaste//chuyu//chuyu11.jpg
+	OriginalImage= imread("F://PHOTO//kitchenWaste//chuyu//chuyu1.jpg");
+
+	if (OriginalImage.empty()||sampleImg.empty()) {
+		cout<<"未能成功导入相关图像"<<endl;
+		return -1;
+	}
+	//将输入的厨余样本图像的尺寸进行规范
+	resize(sampleImg,sampleImg,Size(WIDTH,HEIGHT));
+	//将输入的测试图像的尺寸进行规范
+
+	resize(OriginalImage,srcImg,Size(WIDTH,HEIGHT));
+	//第一步：对厨余样本图像进行处理。
+
+	sample_Processing(0,0);
+	//第二步：对测试图像进行处理。
+	Image_Processing(0,0);
+
+	//第三步：直方图比较
+	histogram_Comparison(0,0);
+
+
+	//第四步：类型判断
+	type_Judgment(0,0);
+
+
+
+
+
+
+
+	waitKey(0);
+	return 0;
+}
+
+//第一步：对厨余样本图像进行处理。
+void sample_Processing(int,void*){
+	//先转为hsv图像格式
+	cvtColor(sampleImg,sample_hsv_Img,CV_BGR2HSV);
+	// 设置垃圾袋 hsv 数值的范围
+	inRange(sample_hsv_Img,Scalar(LowH,LowS,LowV),Scalar(HihgH,HighS,HighV),sample_Threshold_Img);
+
+	Mat sample_kernel=getStructuringElement(MORPH_RECT, Size(5, 5),Point(-1,-1));
+	//开操作 (去除一些噪点)
+	morphologyEx(sample_Threshold_Img,sample_openImg, MORPH_OPEN, sample_kernel);
+	//闭操作 (连接一些连通域)
+	morphologyEx(sample_openImg, sample_closeImg, MORPH_CLOSE, sample_kernel);
+	//中值滤波 消除椒盐噪声 保护边缘信息
+	medianBlur(sample_closeImg, sample_mediaBlurImg, 11);
+
+	//找轮廓、检测到的轮廓（contours）
+	vector<vector<Point>> sample_contours;
+	vector<Vec4i> sample_hierarchy;
+	findContours(sample_mediaBlurImg,sample_contours,sample_hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
+
+	vector<vector<Point>> sample_contours_poly(sample_contours.size());
+	vector<Rect>sample_boundRect(sample_contours.size());
+	//定义一个过滤后的矩形容器向量,值为空,用以存放面积符合要求的，矩形框
+	vector<Rect> sample_tempBoundRect; 
+
+	double sample_Area = 0;
+	Scalar color1 = Scalar(0, 0, 255);
+	for (int i = 0; i < sample_contours.size(); i++) {
+		//使用多边形逼近检测到的图像轮廓来寻找包围轮廓的矩形,contours_poly ：拟合点的集合
+		approxPolyDP(sample_contours[i], sample_contours_poly[i], 3, true);
+		//使用boundingRect()函数计算包围轮廓的矩形cv::boundingRect(InputArray points)返回一个左上角的坐标 以及矩形的长和宽
+		sample_boundRect[i]=boundingRect(Mat(sample_contours_poly[i]));
+		//矩形左上点的坐标
+		int sample_x = sample_boundRect[i].x;
+		int sample_y = sample_boundRect[i].y;
+		int sample_width = sample_boundRect[i].width;
+		int sample_height = sample_boundRect[i].height;
+		//求外接矩形面积(根据面积，把框数据放进容器，然后再从容器中读数据，画矩形)
+		sample_Area = double(sample_width * sample_height);	
+		if(sample_Area>RECT_AERA){
+			//把符合要求的框，存入集合sample_tempBoundRect
+			sample_tempBoundRect.push_back(sample_boundRect[i]);
+		}
+		//循环取出 符合要求的矩形框
+		for(int t=0;t<sample_tempBoundRect.size();t++){
+			rectangle(sampleImg,sample_tempBoundRect[t],color1,1.5,8,0);
+		}	
+		imshow("Sample外接矩形", sampleImg);
+		copy_sampleImg=sampleImg.clone();
+		//将矩形框内的区域定为感兴趣区域，提取出来。
+		//Rect四个形参分别是：x坐标，y坐标，长，高；注意(x,y)指的是矩形的左上角点
+		Mat sample_RoiImg = copy_sampleImg(Rect(sample_x, sample_y, sample_width, sample_height));
+		imshow("样本感兴趣矩形区域", sample_RoiImg);    
+		// 根据感兴趣区域，再将上面部分剪掉, 然后进行颜色判断
+		int m = sample_RoiImg.rows;
+		int n = sample_RoiImg.cols;
+		//从上面0.3倍的行数开始截取，保留下方的70%图像
+		sample_cutImg = sample_RoiImg(Range(m*0.3,m), Range(0,n));
+		imshow("sample_cutImg", sample_cutImg);
+	}
+}
+
+
+
+
+//第二步：对测试图像进行处理。
+void Image_Processing(int,void*){
+	//先转为hsv图像格式
+	cvtColor(srcImg,src_hsv_Img,CV_BGR2HSV);
+	// 设置垃圾袋 hsv 数值的范围
+	inRange(src_hsv_Img,Scalar(LowH,LowS,LowV),Scalar(HihgH,HighS,HighV),src_ThresholdImg);
+
+	Mat src_kernel=getStructuringElement(MORPH_RECT, Size(5, 5),Point(-1,-1));
+	//开操作 (去除一些噪点)
+	morphologyEx(src_ThresholdImg,src_openImg, MORPH_OPEN, src_kernel);
+	//闭操作 (连接一些连通域)
+	morphologyEx(src_openImg, src_closeImg, MORPH_CLOSE, src_kernel);
+	//中值滤波 消除椒盐噪声 保护边缘信息
+	medianBlur(src_closeImg, src_mediaBlurImg, 11);
+	//找轮廓、检测到的轮廓（contours）
+	vector<vector<Point>> src_contours;
+	vector<Vec4i> src_hierarchy;
+	findContours(src_mediaBlurImg,src_contours,src_hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
+
+	vector<vector<Point>> src_contours_poly(src_contours.size());
+	vector<Rect>src_boundRect(src_contours.size());
+	//定义一个过滤后的矩形容器向量,值为空,用以存放面积符合要求的，矩形框
+	vector<Rect> src_tempBoundRect; 
+
+	double src_Area = 0;
+	char src_AeraString[20]={0};
+	Scalar color2 = Scalar(0, 0, 255);
+
+	for (int i = 0; i < src_contours.size(); i++) {
+		//使用多边形逼近检测到的图像轮廓来寻找包围轮廓的矩形,contours_poly ：拟合点的集合
+		approxPolyDP(src_contours[i], src_contours_poly[i], 3, true);
+		//使用boundingRect()函数计算包围轮廓的矩形cv::boundingRect(InputArray points)返回一个左上角的坐标 以及矩形的长和宽
+		src_boundRect[i]=boundingRect(Mat(src_contours_poly[i]));
+		//矩形左上点的坐标
+		int src_x = src_boundRect[i].x;
+		int src_y = src_boundRect[i].y;
+		int src_width = src_boundRect[i].width;
+		int src_height = src_boundRect[i].height;
+		//求外接矩形面积(根据面积，把框数据放进容器，然后再从容器中读数据，画矩形)
+		src_Area = double(src_width * src_height);	
+		if(src_Area>RECT_AERA){
+			//把符合要求的框，存入集合src_tempBoundRect
+			src_tempBoundRect.push_back(src_boundRect[i]);
+		}
+		//循环取出 符合要求的矩形框，并计算相应的宽高比
+		for(int t=0;t<src_tempBoundRect.size();t++){
+			double temp_height=src_tempBoundRect[t].height;
+			double temp_width=src_tempBoundRect[t].width;
+			width_height_percent=double(temp_width/temp_height);
+			//画矩形框
+			rectangle(srcImg,src_tempBoundRect[t],color2,1.5,8,0);
+			cout<<"矩形框的宽高比值为："<<width_height_percent<<endl;
+			sprintf_s(src_AeraString,"Area=%0.2f",src_Area);
+		}
+		//(x1,y1)是自己放置文本的位置
+		int x1=(src_boundRect[i].br().x)/2;
+		int y1=(src_boundRect[i].br().y)/2;
+		//putText(srcImg,src_AeraString,Point(x1,y1),CV_FONT_HERSHEY_COMPLEX_SMALL,0.85,Scalar(0,255,0),1,8);
+
+		imshow("Src外接矩形", srcImg);
+
+		copy_srcImg=srcImg.clone();
+		//将矩形框内的区域定为感兴趣区域，提取出来。
+		//Rect四个形参分别是：x坐标，y坐标，长，高；注意(x,y)指的是矩形的左上角点
+		Mat src_RoiImg = copy_srcImg(Rect(src_x, src_y, src_width, src_height));
+		imshow("Src感兴趣矩形区域", src_RoiImg);    
+		// 根据感兴趣区域，再将上面部分剪掉, 然后进行颜色判断
+		int m1 = src_RoiImg.rows;
+		int n1 = src_RoiImg.cols;
+		//从上面0.3倍的行数开始截取，保留下方的70%图像
+		src_cutImg = src_RoiImg(Range(m1*0.3,m1), Range(0,n1));
+		imshow("src_cutImg", src_cutImg);
+	}
+}
+
+//第三步:直方图比较
+void histogram_Comparison(int,void*){
+	//截取后的垃圾袋，BGR转为HSV空间
+	//样本图像
+	cvtColor(sample_cutImg, sample_cutImg_hsv, COLOR_BGR2HSV);
+	//测试图像
+	cvtColor(src_cutImg, src_cutImg_hsv, COLOR_BGR2HSV);
+	//设置bin
+	int h_bins = 50, s_bins = 60;
+	int histSize[] = { h_bins, s_bins };
+	//设置range
+	float h_ranges[] = { 0, 180 };
+	float s_ranges[] = { 0, 256 };
+	const float* ranges[] = { h_ranges, s_ranges };
+	//设置channel
+	int channels[] = { 0, 1 };
+
+	//计算sample直方图，并归一化
+	calcHist(&sample_cutImg_hsv, 1, channels, Mat(), sample_hist, 2, histSize, ranges, true, false);
+	normalize(sample_hist, sample_hist, 0, 1, NORM_MINMAX, -1, Mat());
+	//计算src直方图，并归一化
+	calcHist(&src_cutImg_hsv, 1, channels, Mat(), src_hist, 2, histSize, ranges, true, false);
+	normalize(src_hist, src_hist, 0, 1, NORM_MINMAX, -1, Mat());
+	//直方图比较(对于相关性比较correlation 越接近1 ，越相似)
+	Similarity = compareHist(sample_hist, src_hist, CV_COMP_CORREL); //,CV_COMP_CHISQR,CV_COMP_INTERSECT,CV_COMP_BHATTACHARYYA  CV_COMP_CORREL
+
+	cout <<"输入图像与厨余样本图像的相似度为"<< "similarity = " << Similarity << endl;
+
+
+}
+//第四步：类型判断 直方图比较相似度+宽高比(宽高比 在此方式下，没有对比区分意义，仅采用直方图比较的方式)，
+//会出现误判问题，对于chuyu1、2、7、14 判断失败
+void type_Judgment(int,void*){
+	if(Similarity>=0.8){
+		cout<<"判定结果：该垃圾类型为厨余垃圾"<<endl;
+	}
+	else{
+		cout<<"判定结果：该垃圾类型为非厨余垃圾"<<endl;
+	}
+}
+
