@@ -1,0 +1,51 @@
+Opencv  均值迁移模糊
+// junzhiqianyi.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
+//
+#include "pch.h"
+#include <opencv2/opencv.hpp>
+#include <iostream>
+using namespace std;
+using namespace cv;
+//均值迁移模糊是图像边缘保留滤波算法中一种，经常用来在对图像进行分水岭分割之前去噪声，可以大幅度提升分水岭分割的效果。
+//它的基本原理是：对于给定的一定数量样本，任选其中一个样本，以该样本为中心点划定一个圆形区域，求取该圆形区域内样本的质心，即密度最大处的点，
+//再以该点为中心继续执行上述迭代过程，直至最终收敛。
+//可以利用均值偏移算法的这个特性，实现彩色图像分割，Opencv中对应的函数是pyrMeanShiftFiltering。
+//这个函数严格来说并不是图像的分割，而是图像在色彩层面的平滑滤波，它可以中和色彩分布相近的颜色，平滑色彩细节，侵蚀掉面积较小的颜色区域。
+//void pyrMeanShiftFiltering(InputArray src, OutputArray dst,
+//double sp, double sr, int maxLevel = 1,
+//TermCriteria termcrit = TermCriteria(TermCriteria::MAX_ITER + TermCriteria::EPS, 5, 1));
+//第1个参数 src：输入图像，8位，三通道的彩色图像，并不要求必须是RGB格式，HSV、YUV等Opencv中的彩色图像格式均可。
+//第2个参数 dst：输出图像，跟输入src有同样的大小和数据格式。
+//第3个参数 sp，定义的漂移物理空间半径大小。
+//第4个参数 sr：定义的漂移色彩空间半径大小。
+//第5个参数 maxLevel：定义金字塔的最大层数。
+//第6个参数 termcrit：定义的漂移迭代终止条件，可以设置为迭代次数满足终止，迭代目标与中心点偏差满足终止，或者两者的结合。
+/*
+pyrMeanShiftFiltering函数的执行过程是这样的：
+1. 迭代空间构建：
+以输入图像上src上任一点P0为圆心，建立物理空间上半径为sp，色彩空间上半径为sr的球形空间，物理空间上坐标2个—x、y，
+色彩空间上坐标3个—R、G、B（或HSV），构成一个5维的空间球体。
+其中物理空间的范围x和y是图像的长和宽，色彩空间的范围R、G、B分别是0~255。
+2. 求取迭代空间的向量并移动迭代空间球体后重新计算向量，直至收敛：
+在1中构建的球形空间中，求得所有点相对于中心点的色彩向量之和后，移动迭代空间的中心点到该向量的终点，
+并再次计算该球形空间中所有点的向量之和，如此迭代，直到在最后一个空间球体中所求得的向量和的终点就是该空间球体的中心点Pn，迭代结束。
+3. 更新输出图像dst上对应的初始原点P0的色彩值为本轮迭代的终点Pn的色彩值，如此完成一个点的色彩均值漂移。
+4. 对输入图像src上其他点，依次执行步骤1,、2、3，遍历完所有点位后，整个均值偏移色彩滤波完成。
+在这个过程中，关键参数是sp和sr的设置，二者设置的值越大，对图像色彩的平滑效果越明显，同时函数耗时也越多。
+*/
+int main(int argc, char* argv[]) {
+       Mat src = imread("F:\\PHOTO\\test.png");
+       if (src.empty()) {
+              printf("无法加载图像，请检查图像目录！\n");
+              return -1;
+       }
+       namedWindow("原图", WINDOW_AUTOSIZE);
+       imshow("原图", src);
+       Mat dst;
+       //迭代终止条件 参数1：类型，参数2：最大迭代次数，参数3：特定阈值
+       TermCriteria criteria = TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, 5,1);
+       pyrMeanShiftFiltering(src, dst, 15, 30, 1, criteria);
+       imshow("均值迁移模糊", dst);
+       waitKey(0);
+       return 0;
+}
