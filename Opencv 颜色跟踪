@@ -1,0 +1,86 @@
+Opencv   颜色跟踪
+// yansegenzong.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
+//
+/*
+基于颜色跟踪的实现步骤：
+1，使用inRange过滤出特定颜色
+2，形态学提取
+3，轮廓查找
+4，矩形框获取
+5，位置标定
+*/
+#include "pch.h"
+#include <iostream>
+#include<opencv2/opencv.hpp>
+using namespace cv;
+using namespace std;
+Rect final_rect;
+void processFrame(Mat binary, Rect rect);
+int Count = 0;
+int main(int argc, char* argv) {
+       //load video
+       VideoCapture capture;
+       capture.open("F:\\PHOTO\\yansegenzong.mp4");
+       if (!capture.isOpened()) {
+              printf("could not find video file");
+              return -1;
+       }
+       Mat frame, mask;
+       Mat kernel1 = getStructuringElement(MORPH_RECT, Size(3, 3), Point(-1, -1));
+       Mat kernel2 = getStructuringElement(MORPH_RECT, Size(5, 5), Point(-1, -1));
+       namedWindow("input video", WINDOW_AUTOSIZE);
+       namedWindow("track mask", WINDOW_AUTOSIZE);
+       double time0, time1 = 0;
+       while (capture.read(frame)) {
+              Count++;
+              time0 = getTickCount();
+              //过滤
+              inRange(frame, Scalar(0, 127, 0), Scalar(120, 255, 120), mask);
+              //开操作
+              morphologyEx(mask, mask, MORPH_OPEN, kernel1, Point(-1, -1), 1);
+              //膨胀
+              dilate(mask, mask, kernel2, Point(-1, -1), 2);
+              imshow("track mask", mask);
+              //轮廓发现与位置标定
+              processFrame(mask, final_rect);
+              rectangle(frame, final_rect, Scalar(0, 0, 255), 2, 8, 0);
+              imshow("input video", frame);
+              printf("第 %d 次的时间是%lf\n", Count, (getTickCount() - time0) / getTickFrequency());
+              time1 += (getTickCount() - time0) / getTickFrequency();
+              char c = waitKey(1);
+              if (c == 27) {
+                     break;
+              }
+              if (Count == 361) {
+                     break;
+              }
+       }
+              cout << 1.0*Count / time1 << '\n' << endl;
+              printf("%lf\n\n", time1);
+              capture.release();
+              waitKey(0);
+              return 0;
+       }
+       void processFrame(Mat binary, Rect rect) {
+              vector<vector<Point>> contours;
+              vector<vector<Point>>contours_poly(contours.size());
+              vector<Vec4i> hireachy;
+              findContours(binary, contours, hireachy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point(0, 0));
+              if (contours.size() > 0) {
+                     double maxArea = 0.0;
+                     for (int t = 0; t < contours.size(); t++) {
+                           //使用多边形逼近检测到的图像轮廓来寻找包围轮廓的矩形,contours_poly ：拟合点的集合
+                           approxPolyDP(contours[t],contours_poly[t],3,true);
+                           double area = contourArea(contours[t],false);
+                           if (area > maxArea) {
+                                  maxArea = area;
+                                  //使用boundingRect()函数计算包围轮廓的矩形框
+                                  rect = boundingRect(contours_poly[t]);
+                           }
+                     }
+              }
+              else {
+                     rect.x = rect.y = rect.width = rect.height = 0;
+              }
+              
+       }
