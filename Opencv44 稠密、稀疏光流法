@@ -1,0 +1,118 @@
+Opencv 稠密、稀疏光流法
+// guangliufa.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
+//
+#include "pch.h"
+#include <iostream>
+#include"opencv2/opencv.hpp"
+#include"opencv2/video/tracking.hpp"
+#include"opencv2/highgui/highgui.hpp"
+#include<sstream>
+#include<fstream>
+#include<string.h>
+#define MAX_CORNERS 1000
+using namespace std;
+using namespace cv;
+int main(int argc, char* argv[])
+{
+       //读取两幅图片
+       vector<Mat>imgs;
+       vector<Mat>grayImgs;
+       Mat img = imread("F:\\PHOTO\\flow\\1.jpg");
+       imgs.push_back(img);
+       img = imread("F:\\PHOTO\\flow\\2.jpg");
+       imgs.push_back(img);
+       //灰度化
+       for (int i = 0; i < imgs.size(); i++) {
+              Mat temp;
+              temp.create(imgs[i].rows, imgs[i].cols, CV_8UC1);
+              cvtColor(imgs[i], temp, COLOR_BGR2GRAY);
+              grayImgs.push_back(temp);
+       }
+       //标记待检测的特征点
+       vector<Point2f>point[2];
+       double qualityLevel = 0.01;
+       double minDistance = 10;
+       /*角点检测
+         void goodFeaturesToTrack( InputArray image, OutputArray corners,
+                                                       int maxCorners, double qualityLevel, double minDistance,
+                                                       InputArray mask=noArray(), int blockSize=3,
+                                                       bool useHarrisDetector=false, double k=0.04 )
+第一个参数是输入图像（8位或32位单通道图）。
+第二个参数是检测到的所有角点，类型为vector或数组，由实际给定的参数类型而定。
+如果是vector，那么它应该是一个包含cv::Point2f的vector对象；如果类型是cv::Mat,那么它的每一行对应一个角点，点的x、y位置分别是两列。
+第三个参数用于限定检测到的点数的最大值。
+第四个参数表示检测到的角点的质量水平（通常是0.10到0.01之间的数值，不能大于1.0）。
+第五个参数用于区分相邻两个角点的最小距离（小于这个距离得点将进行合并）。
+第六个参数是mask，如果指定，它的维度必须和输入图像一致，且在mask值为0处不进行角点检测。
+第七个参数是blockSize，表示在计算角点时参与运算的区域大小，常用值为3，但是如果图像的分辨率较高则可以考虑使用较大一点的值。
+第八个参数用于指定角点检测的方法，如果是true则使用Harris角点检测，false则使用Shi Tomasi算法。
+第九个参数是在使用Harris算法时使用，最好使用默认值0.04。
+  */
+  //将imgs[0]中的检测到的角点存入point[0]中
+       goodFeaturesToTrack(grayImgs[0], point[0], MAX_CORNERS, qualityLevel, minDistance);
+       cout << point[0].size() << endl;
+       //显示角点
+       for (int i = 0; i < point[0].size(); i++) {
+              circle(imgs[0], Point(round(point[0][i].x), round(point[0][i].y)), 3, Scalar(255, 0, 0), 1, LINE_8);
+       }
+       
+       imshow("检测到的角点", imgs[0]);
+       /*
+       利用用Gunnar Farneback的算法计算全局性的稠密光流算法
+        void cv::calcOpticalFlowFarneback( InputArray _prev0, InputArray _next0,
+                                                 OutputArray _flow0, double pyr_scale, int levels, int winsize,
+                                                 int iterations, int poly_n, double poly_sigma, int flags )
+// 参数说明如下：
+// _prev0：输入前一帧图像
+// _next0：输入后一帧图像
+// _flow0：输出的光流
+// pyr_scale：金字塔上下两层之间的尺度关系
+// levels：金字塔层数
+// winsize：均值窗口大小，越大越能denoise并且能够检测快速移动目标，但会引起模糊运动区域
+// iterations：迭代次数
+// poly_n：像素领域大小，一般为5，7等
+// poly_sigma：高斯标注差，一般为1-1.5
+// flags：计算方法。主要包括OPTFLOW_USE_INITIAL_FLOW和OPTFLOW_FARNEBACK_GAUSSIAN
+  */
+  //稠密光流
+       Mat flow;
+       calcOpticalFlowFarneback(grayImgs[0], grayImgs[1], flow, 0.5, 3, 15, 3, 5, 1.2, 0);
+       //对原图每个像素计算光流
+       cout << flow.size() << endl;
+       for (int y = 0; y < imgs[0].rows; y += 10) {
+              for (int x = 0; x < imgs[0].cols; x += 10) {
+                     Point2f fxy = flow.at<Point2f>(y, x);
+                     line(imgs[0], Point(x, y), Point(round(x + fxy.x), round(y + fxy.y)), Scalar(0, 255, 0), 1, 8);
+              }
+       }
+       namedWindow("稠密光流",WINDOW_AUTOSIZE);
+       imshow("稠密光流", imgs[0]);
+//稀疏光流
+       /*calcOpticalFlowPyrLK （），基于角点特征的金字塔LK光流跟踪算法
+       void calcOpticallFlowPyrLK(InuputArray prevImg, InputArray nextImg, InputArray prevPts, InputOutputArray
+              nextPts, OutputArray status, OutputArray err, Size winSize = Size(21, 21), int maxLevel = 3, TermCriteria
+              criteria = TermCriteria(TermCriteria::COUNT + TermCriteria::EPS, 30, 0.01), int flags = 0, double minEigThreshold = 1e-4);
+              -prevImg: 深度为8位的前一帧图像或金字塔图像。
+              - nextImg：和prevImg有相同的大小和类型，后一帧图像或金字塔。
+              - prevPts：输入计算光流所需要的输入2D点矢量，点坐标必须是单精度浮点数。
+              - nextPts：输出2D点矢量(也是单精度浮点数坐标)，点矢量中包含的是在后一帧图像上计算得到的输入特征新位置。
+              - status：输出状态矢量(元素是无符号char类型，uchar)，如果相应特征的流发现则矢量元素置为1，否则，为0。
+              - err：输出误差矢量。
+              - winSize：每个金字塔层搜索窗大小。
+              - maxLevel：金字塔层的最大数目；如果置0，金字塔不使用(单层)；如果置1，金字塔2层，等等以此类推。
+              - criteria：指定搜索算法收敛迭代的类型
+*/
+       //迭代终止条件 参数1：类型，参数2：最大迭代次数，参数3：特定阈值
+       TermCriteria criteria = TermCriteria(TermCriteria::COUNT|TermCriteria::EPS,20,0.33);
+       vector<uchar> status;
+       vector<float> err;
+       calcOpticalFlowPyrLK(grayImgs[0],grayImgs[1],point[0],point[1],status,err,Size(15,15),3,criteria);
+       for (int i = 0; i < point[0].size() && i < point[1].size(); i++) {
+              line(imgs[1], Point(round(point[0][i].x), round(point[0][i].y)), Point(round(point[1][i].x),
+                     round(point[1][i].y)), Scalar(0, 50, 200), 1, 8);
+       }
+       namedWindow("稀疏光流", WINDOW_AUTOSIZE);
+       imshow("稀疏光流",imgs[1]);
+       waitKey(0);
+       return  0;
+}
