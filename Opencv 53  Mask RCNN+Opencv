@@ -1,4 +1,5 @@
 // Mask-RCNN+Opencv+SingleImage.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
+该工程每次仅读入一张图像，后续会改进，读取多张图像。
 
 #include "pch.h"
 #include"io.h"
