@@ -1,0 +1,219 @@
+// Mask-RCNN+Opencv+SingleImage.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
+
+#include "pch.h"
+#include"io.h"
+#include <iostream>
+#include<sstream>
+#include<string.h>
+#include<fstream>
+
+#include<opencv2/opencv.hpp>
+#include<opencv2/dnn.hpp>
+#include<opencv2/imgproc.hpp>
+#include<opencv2/highgui.hpp>
+
+using namespace cv;
+using namespace std;
+using namespace dnn;
+
+//用于存放类别几个
+vector<string> classes;
+vector<Scalar> colors;
+RNG rng1;
+
+//Initialize the parameters
+float confThreshold = 0.5;//confidence threshold
+float maskThreshold = 0.3;//Mask threshold
+
+
+//Draw the predicted bounding box：绘制预测的边界框
+void drawBox(Mat& frame, int classId, float conf, Rect box, Mat& objectMask);
+//Postprocess the neural network's output for each frame：对每帧的神经网络输出做后处理
+void postprocess(Mat& frame, const vector<Mat>& outs);
+
+int main() {
+	//give the configuration and weight files for the model
+	//导入模型的配置和权重文件
+	String modelWeights = "F:\\mask_rcnn_inception_v2_coco_2018_01_28\\frozen_inference_graph.pb";
+	String textGraph = "F:\\mask_rcnn_inception_v2_coco_2018_01_28\\mask_rcnn_inception_v2_coco_2018_01_28.pbtxt";
+	//加载class 名称
+	string classesFile = "F:\\mask_rcnn_inception_v2_coco_2018_01_28\\mscoco_labels.names";
+	//输入，将数据读入内存；c_str()：函数返回一个指向正规C字符串的指针常量，内容与本string相同
+	ifstream ifs(classesFile.c_str());
+	string line;
+	//getline从标准输入设备上读入字符，返回给输入流ifs，while判断语句的真实判断对象是ifs，判断当前是否存在有效的输入流
+	//push_back函数将line插入classes vector集合中)
+	while (getline(ifs, line)) classes.push_back(line);
+
+	//加载颜色
+	string colorsFile = "F:\\mask_rcnn_inception_v2_coco_2018_01_28\\colors.txt";
+	//输入，将数据读入内存；c_str()：函数返回一个指向正规C字符串的指针常量，内容与本string相同
+	ifstream colorFptr(colorsFile.c_str());
+	//getline从标准输入设备上读入字符，返回给输入流colorFptr，while判断语句的真实判断对象是colorFptr，判断当前是否存在有效的输入流
+	while (getline(colorFptr, line))
+	{
+		char* pEnd;
+		double r, g, b;
+		//strtod():将字符串转为浮点数
+		r = strtod(line.c_str(), &pEnd);
+		g = strtod(pEnd, NULL);
+		b = strtod(pEnd, NULL);
+		Scalar color = Scalar(r, g, b, 255.0);
+		colors.push_back(Scalar(r, g, b, 255.0));
+	}
+	//load the network：加载网络
+	Net net = readNetFromTensorflow(modelWeights, textGraph);
+	net.setPreferableBackend(DNN_BACKEND_OPENCV);
+	net.setPreferableTarget(DNN_TARGET_CPU);
+	// Open a video file or an image file or a camera stream：打开视频文件、图像文件或相机
+	string str, outputFile;
+	//根据摄像头端口id的不同修改
+	VideoCapture cap(0);
+
+	Mat frame, blob;
+	// 创建窗口名
+	static const string kWinName = "Deep learning object detection in OpenCV";
+	namedWindow(kWinName, WINDOW_AUTOSIZE);
+	// Process frames：处理帧
+	if (1 > 0)
+	{
+		// get frame from the video
+		//cap >> frame;
+		//读取图像
+		frame = cv::imread("F:\\PHOTO\\people.jpg");
+
+		// Stop the program if reached end of video:到达视频结尾，停止该程序
+		if (frame.empty())
+		{
+			cout << "Done processing !!!" << endl;
+			cout << "Output file is stored as " << outputFile << endl;
+		}
+		// Create a 4D blob from a frame.
+		//输入的帧图像需要经过相应函数转换为神经网络的输入格式bolb
+		blobFromImage(frame, blob, 1.0, Size(frame.cols, frame.rows), Scalar(), true, false);
+
+		//Sets the input to the network：设置网络输入
+		net.setInput(blob);
+
+		// Runs the forward pass to get output from the output layers：经前向传播，从输出层获取输出
+		std::vector<String> outNames(2);
+		outNames[0] = "detection_out_final";
+		outNames[1] = "detection_masks";
+		vector<Mat> outs;
+		net.forward(outs, outNames);
+
+		// Extract the bounding box and mask for each of the detected objects：为每个检测到的对象，提取边界框和掩模
+		postprocess(frame, outs);
+
+		// Put efficiency information.
+		//The function getPerfProfile returns the overall time for inference(t) and the timings for each of the layers(in layersTimes)
+		//getPerfProfile函数返回推理的总时间以及每层花费的时间
+		vector<double> layersTimes;
+		double freq = getTickFrequency() / 1000;
+		double t = net.getPerfProfile(layersTimes) / freq;
+
+		string label = format("Inference time: %0.0f ms", t);
+		putText(frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 0));
+
+		// Write the frame with the detection boxes ：用检测框写入帧
+		Mat detectedFrame;
+		frame.convertTo(detectedFrame, CV_8U);
+
+		imshow(kWinName, frame);
+
+	}
+	//关闭摄像头
+	//cap.release();
+
+	waitKey(0);
+	return 0;
+}
+
+
+// For each frame, extract the bounding box and mask for each detected object
+//对每帧，提取每个被检测对象的边界框与掩模
+void postprocess(Mat& frame, const vector<Mat>& outs)
+{
+	Mat outDetections = outs[0];
+	Mat outMasks = outs[1];
+
+	// Output size of masks is NxCxHxW where：输出格式为：N*C*H*W
+	// N - number of detected boxes: 检测框的个数
+	// C - number of classes (excluding background)：种类数量（排除背景）
+	// HxW - segmentation shape：高*宽，分割形状
+	const int numDetections = outDetections.size[2];
+	const int numClasses = outMasks.size[1];
+
+	outDetections = outDetections.reshape(1, outDetections.total() / 7);
+	for (int i = 0; i < numDetections; ++i)
+	{
+		float score = outDetections.at<float>(i, 2);
+		if (score > confThreshold)
+		{
+			// Extract the bounding box：提取边界框
+			int classId = static_cast<int>(outDetections.at<float>(i, 1));
+			int left = static_cast<int>(frame.cols * outDetections.at<float>(i, 3));
+			int top = static_cast<int>(frame.rows * outDetections.at<float>(i, 4));
+			int right = static_cast<int>(frame.cols * outDetections.at<float>(i, 5));
+			int bottom = static_cast<int>(frame.rows * outDetections.at<float>(i, 6));
+
+			left = max(0, min(left, frame.cols - 1));
+			top = max(0, min(top, frame.rows - 1));
+			right = max(0, min(right, frame.cols - 1));
+			bottom = max(0, min(bottom, frame.rows - 1));
+			Rect box = Rect(left, top, right - left + 1, bottom - top + 1);
+
+			// Extract the mask for the object：提取对象的掩模
+			Mat objectMask(outMasks.size[2], outMasks.size[3], CV_32F, outMasks.ptr<float>(i, classId));
+
+			// Draw bounding box, colorize and show the mask on the image
+			//绘制边界框，上色并在图像上显示掩模
+			drawBox(frame, classId, score, box, objectMask);
+
+		}
+	}
+}
+
+
+// Draw the predicted bounding box, colorize and show the mask on the image
+//绘制预测的边界框，上色并在图像上显示掩模
+void drawBox(Mat& frame, int classId, float conf, Rect box, Mat& objectMask)
+{
+	//Draw a rectangle displaying the bounding box:绘制一个显示边界框的矩形
+	rectangle(frame, Point(box.x, box.y), Point(box.x + box.width, box.y + box.height), Scalar(255, 178, 50), 2);
+
+	//Get the label for the class name and its confidence：获取类名称以及置信度的标签
+	string label = format("%.2f", conf);
+	if (!classes.empty())
+	{
+		CV_Assert(classId < (int)classes.size());
+		label = classes[classId] + ":" + label;
+	}
+
+	//Display the label at the top of the bounding box：在边界框顶部显示标签信息
+	int baseLine;
+	Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+	box.y = max(box.y, labelSize.height);
+	//该矩形框用于存放显示标签信息
+	rectangle(frame, Point(box.x, box.y - round(1.5*labelSize.height)), Point(box.x + round(1.5*labelSize.width), box.y + baseLine), Scalar(255, 255, 255), FILLED);
+	putText(frame, label, Point(box.x, box.y), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(0, 0, 0), 1);
+
+	//Scalar color = colors[classId%colors.size()];
+	Scalar color = Scalar(rng1.uniform(0, 255), rng1.uniform(0, 255), rng1.uniform(0, 255));
+
+	// Resize the mask, threshold, color and apply it on the image
+	//调整掩膜、阈值、颜色将其应用于图像
+	resize(objectMask, objectMask, Size(box.width, box.height));
+	Mat mask = (objectMask > maskThreshold);
+	Mat coloredRoi = (0.3 * color + 0.7 * frame(box));
+	coloredRoi.convertTo(coloredRoi, CV_8UC3);
+
+	// Draw the contours on the image：在图像上绘制轮廓
+	vector<Mat> contours;
+	Mat hierarchy;
+	mask.convertTo(mask, CV_8U);
+	findContours(mask, contours, hierarchy, RETR_CCOMP, CHAIN_APPROX_SIMPLE);
+	drawContours(coloredRoi, contours, -1, color, 3, LINE_8, hierarchy, 100);
+	coloredRoi.copyTo(frame(box), mask);
+
+}
